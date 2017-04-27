@@ -142,6 +142,8 @@ int controller(CPU_p cpu, Register mem[])
         case JSRR:
         cpu->reg_file[7] = cpu->pc;
         break;
+        case LEA: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = FETCH_OP;
@@ -188,6 +190,9 @@ int controller(CPU_p cpu, Register mem[])
             cpu->alu->B = cpu->reg_file[sr1];
         }
         break;
+        case LEA:
+        immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9)
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = EXECUTE;
@@ -223,6 +228,8 @@ int controller(CPU_p cpu, Register mem[])
         case JSRR:
         cpu->alu->R = cpu->alu->A + cpu->alu->B;
         break;
+        case LEA: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = STORE;
@@ -257,6 +264,11 @@ int controller(CPU_p cpu, Register mem[])
 		break;
         case JSRR:
         cpu->pc = cpu->alu->R;
+        break;
+        case LEA:
+        cpu->main_bus = immed_offset;
+        cpu->reg_file[dr] = cpu->main_bus;
+        setCC(cpu);
         break;
 	    }
 
