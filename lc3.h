@@ -18,7 +18,8 @@
 #define LD 0x2
 #define ST 0x3
 #define JMP 0xD
-#defein LEA 0xE
+#define LEA 0xE
+#define RET 0xC
 // others to follow
 
 #define OPCODE_MASK 0xF000

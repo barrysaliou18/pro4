@@ -144,6 +144,8 @@ int controller(CPU_p cpu, Register mem[])
         break;
         case LEA: //nothing needed
         break;
+        case RET: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = FETCH_OP;
@@ -193,6 +195,8 @@ int controller(CPU_p cpu, Register mem[])
         case LEA:
         immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9)
         break;
+        case RET: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = EXECUTE;
@@ -229,6 +233,8 @@ int controller(CPU_p cpu, Register mem[])
         cpu->alu->R = cpu->alu->A + cpu->alu->B;
         break;
         case LEA: //nothing needed
+        break;
+        case RET: //nothing needed
         break;
 	    }
 	    printStatus(cpu, mem);
@@ -269,6 +275,9 @@ int controller(CPU_p cpu, Register mem[])
         cpu->main_bus = immed_offset;
         cpu->reg_file[dr] = cpu->main_bus;
         setCC(cpu);
+        break;
+        case RET:
+        cpu->pc = cpu->reg_file[7];
         break;
 	    }
 
