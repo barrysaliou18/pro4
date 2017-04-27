@@ -446,7 +446,6 @@ int textgui(CPU_p cpu, Register mem[])
 
 int main(int argc, char *argv[])
 {
- m
     Register memory[100];
 
     CPU_p cpu = (CPU_p)malloc(sizeof(CPU_s));

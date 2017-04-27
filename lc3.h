@@ -70,4 +70,4 @@ typedef struct cpu_s {
 
 typedef CPU_s * CPU_p;
 
-
+int textgui(CPU_p cpu, Register mem[]);
