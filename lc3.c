@@ -182,6 +182,7 @@ int controller(CPU_p cpu, Register mem[])
         case JSRR:
         if (bit11) { //bit 11 is 1
             cpu->alu->A = cpu->pc;
+            cpu->alu->B = sext(cpu->ir & OFFSET11_MASK, EXT11);
         } else {
             cpu->alu->A = 0;
             cpu->alu->B = cpu->reg_file[sr1];
