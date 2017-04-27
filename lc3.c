@@ -38,19 +38,6 @@ Register sext(Register immed, int extend)
     return immed;
 }
 
-int printStatus(CPU_p cpu, Register mem[])
-{
-    //printf("Contents of PC = %04X\n", cpu->pc);
-    //printf("Contents of MAR = %04X\n", cpu->mar);
-    //printf("Contents of MDR = %04X\n", cpu->mdr);
-    //printf("Contents of IR = %04X\n", cpu->ir);
-    //printf("Contents of PSR = %04X\n", cpu->psr);
-    //printf("Contents of Main Bus = %04X\n", cpu->main_bus);
-    int i;
-    // for (i=0; i<5; i++) //printf("Contents of register[%02X]: %04X\n", i, cpu->reg_file[i]);
-    // for (i=0; i<10; i++) //printf("Contents of memory[%04X]: %04X\n", i, mem[i]);
-}
-
 int setCC(CPU_p cpu)
 {
     int sign_bit;
@@ -73,6 +60,7 @@ int controller(CPU_p cpu, Register mem[])
     unsigned int sr1;
     unsigned int sr2;
     unsigned int bit5;
+    unsigned int bit11;
     unsigned int immed_offset; // fields for the IR
     unsigned int effective_addr;
     int ben;
@@ -115,6 +103,7 @@ int controller(CPU_p cpu, Register mem[])
 	    sr1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
 	    sr2 = cpu->ir & SR2_MASK;
 	    bit5 = (cpu->ir & BIT5_MASK ? 1 : 0);
+        bit11 = (cpu->ir & BIT11_MASK ? 1 : 0);
 
 	    ben = (((cpu->ir & NEG_BIT_MASK) >> 11) & ((cpu->psr & NEG_FLAG_MASK) >> 2)) |
 		  (((cpu->ir & ZERO_BIT_MASK) >> 11) & ((cpu->psr & ZERO_FLAG_MASK) >> 1)) |
@@ -150,6 +139,13 @@ int controller(CPU_p cpu, Register mem[])
 		break;
 	    case JMP: // nothing needed
 		break;
+        case JSRR:
+        cpu->reg_file[7] = cpu->pc;
+        break;
+        case LEA: //nothing needed
+        break;
+        case RET: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = FETCH_OP;
@@ -187,6 +183,20 @@ int controller(CPU_p cpu, Register mem[])
 	    case BR:
 		// nothing
 		break;
+        case JSRR:
+        if (bit11) { //bit 11 is 1
+            cpu->alu->A = cpu->pc;
+            cpu->alu->B = sext(cpu->ir & OFFSET11_MASK, EXT11);
+        } else {
+            cpu->alu->A = 0;
+            cpu->alu->B = cpu->reg_file[sr1];
+        }
+        break;
+        case LEA:
+        immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9)
+        break;
+        case RET: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = EXECUTE;
@@ -219,6 +229,13 @@ int controller(CPU_p cpu, Register mem[])
 		if (ben)
 		    cpu->pc = effective_addr;
 		break;
+        case JSRR:
+        cpu->alu->R = cpu->alu->A + cpu->alu->B;
+        break;
+        case LEA: //nothing needed
+        break;
+        case RET: //nothing needed
+        break;
 	    }
 	    printStatus(cpu, mem);
 	    state = STORE;
@@ -251,6 +268,17 @@ int controller(CPU_p cpu, Register mem[])
 	    case BR:
 		// nothing
 		break;
+        case JSRR:
+        cpu->pc = cpu->alu->R;
+        break;
+        case LEA:
+        cpu->main_bus = immed_offset;
+        cpu->reg_file[dr] = cpu->main_bus;
+        setCC(cpu);
+        break;
+        case RET:
+        cpu->pc = cpu->reg_file[7];
+        break;
 	    }
 
 	    state = FETCH;

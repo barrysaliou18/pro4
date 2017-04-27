@@ -18,6 +18,8 @@
 #define LD 0x2
 #define ST 0x3
 #define JMP 0xD
+#define LEA 0xE
+#define RET 0xC
 // others to follow
 
 #define OPCODE_MASK 0xF000
@@ -43,6 +45,7 @@
 #define EXT11 0x0400
 #define NEG11 0xFC00
 
+#define BIT11_MASK 0x0800
 #define BIT5_MASK 0x0020
 #define SIGN_BIT_MASK 0x8000
 #define NEG_FLAG_MASK 0x0004
