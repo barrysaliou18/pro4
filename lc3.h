@@ -58,6 +58,8 @@
 #define ZERO_BIT_MASK 0x0400
 #define POS_BIT_MASK 0x0200
 
+char* textoutput = "";
+
 typedef unsigned short Register;
 
 typedef struct alu_s {
@@ -76,3 +78,5 @@ typedef struct cpu_s {
 typedef CPU_s * CPU_p;
 
 int textgui(CPU_p cpu, Register mem[]);
+
+char* append(char* str1, char* str2);

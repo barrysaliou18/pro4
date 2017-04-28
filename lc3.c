@@ -12,6 +12,7 @@
 */
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <ncurses.h>
 #include "lc3.h"
 
@@ -248,6 +249,15 @@ int controller(CPU_p cpu, Register mem[])
 		setCC(cpu);
 		break;
 	    case TRAP:
+		if (immed_offset == 0x21) { //out
+			char input = cpu->reg_file[0];
+			char *ip = &input;
+			printf("%c", input);
+			textoutput = append(textoutput, ip);
+		} 
+		if (immed_offset == 0x20) { //getch
+			scanf("%c", &cpu->reg_file[0]);
+		}
 		break;
 	    case LD:
 		cpu->main_bus = cpu->mdr;
@@ -358,6 +368,8 @@ int textgui(CPU_p cpu, Register mem[])
 	mvprintw(17, 7, "N:%d", n);
 	mvprintw(17, 11, "P:%d", p);
 	mvprintw(17, 15, "Z:%d", z);
+	
+	mvprintw(24, 4, "Output: %s", textoutput);
 
 	mvprintw(22, 4, "%s", mesg);
 	getstr(str);
@@ -401,9 +413,11 @@ int textgui(CPU_p cpu, Register mem[])
 		clrtoeol();
 		cpu->pc = mem[0];
 		mvprintw(23, 4, "HALT HAS BEEN REACHED PC set to x%04X", cpu->pc);
-	    }
-	    else
-	    {
+	    } else if (cpu->ir == 0xF020) {
+		move(23, 4);
+		clrtoeol();
+		mvprintw(23, 4, "Enter a character");
+		} else {
 		move(23, 4);
 		clrtoeol();
 		mvprintw(23, 4, "Steping through");
@@ -467,6 +481,13 @@ int textgui(CPU_p cpu, Register mem[])
     }
 }
 
+char* append(char* str1, char* str2) {
+	char* str3 = (char*) malloc(1 + strlen(str1) + strlen(str2));
+	strcpy(str3, str1);
+	strcat(str3, str2);
+	return str3;
+}
+
 int main(int argc, char *argv[])
 {
     Register memory[100];
@@ -476,4 +497,7 @@ int main(int argc, char *argv[])
 
 
     controller(cpu, memory);
+	free(cpu->alu);
+	free(cpu);
+	return 0;
 }
