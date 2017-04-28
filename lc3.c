@@ -92,7 +92,6 @@ int controller(CPU_p cpu, Register mem[])
 	    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	    // put //printf statements in each state and microstate to see that it is working
 	    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	    //	printStatus(cpu, mem);
 	    state = DECODE;
 	    break;
 	case DECODE: //
@@ -111,7 +110,6 @@ int controller(CPU_p cpu, Register mem[])
 
 	    state = EVAL_ADDR;
 	    //printf("opcode = %02X, dr = %02X, sr1 = %02X, sr2 = %02X\n", opcode, dr, sr1, sr2);
-	    printStatus(cpu, mem);
 	    break;
 	case EVAL_ADDR: //
 			//printf("Here in EVAL_ADDR\n");
@@ -147,7 +145,6 @@ int controller(CPU_p cpu, Register mem[])
         case RET: //nothing needed
         break;
 	    }
-	    printStatus(cpu, mem);
 	    state = FETCH_OP;
 	    break;
 	case FETCH_OP: // Look at ST. Microstate 23 example of getting a value out of a register
@@ -193,12 +190,11 @@ int controller(CPU_p cpu, Register mem[])
         }
         break;
         case LEA:
-        immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9)
+        immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9);
         break;
         case RET: //nothing needed
         break;
 	    }
-	    printStatus(cpu, mem);
 	    state = EXECUTE;
 	    break;
 	case EXECUTE: // Note that ST does not have an execute microstate
@@ -237,7 +233,6 @@ int controller(CPU_p cpu, Register mem[])
         case RET: //nothing needed
         break;
 	    }
-	    printStatus(cpu, mem);
 	    state = STORE;
 	    break;
 	case STORE: // Look at ST. Microstate 16 is the store to memory
