@@ -18,6 +18,8 @@
 #define LD 0x2
 #define ST 0x3
 #define JMP 0xD
+#define JSRR 0x4
+#define JSR 0x4
 #define LEA 0xE
 #define RET 0xC
 // others to follow
