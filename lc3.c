@@ -426,12 +426,8 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LEA:
-<<<<<<< HEAD
                         alu.a = cpu->pc;
                         alu.b = cpu->sext;
-=======
-                    immed_offset = sext(cpu->ir & IMMED11_MASK, EXIT);
->>>>>>> refs/remotes/origin/master
                         break;
                 }
                 state = EXECUTE;
