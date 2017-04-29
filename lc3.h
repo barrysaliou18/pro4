@@ -94,5 +94,6 @@ void error(char *s);
 void userSelection(CPU_p cpu);
 char* checkDebugPointer(int i, CPU_p cpu);
 char* append(char* str1, char* str2);
-void resetCursor();
+void setBreakPoint(int address);
+int isBreakPoint(int address);
 #endif /* LC3_H_ */
