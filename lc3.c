@@ -225,7 +225,7 @@ void parseIR(CPU_p cpu) {
         rs1 = (cpu->ir & SR1_MASK) >> 6;
         rs2 = cpu->ir & SR2_MASK;
     }
-    else if (opcode == STR) {
+    else if (opcode == STR || opcode == LDR) {
         rd = (cpu->ir & DR_MASK) >> 9;
         rs1 = (cpu->ir & SR1_MASK) >> 6;
     }
@@ -253,7 +253,7 @@ void sext(CPU_p cpu) {
             immed |= SIGN_EXT5;
         }
     }
-    else if (opcode == STR) {
+    else if (opcode == STR || opcode == LDR) {
         immed &= IMMED6_MASK;
         if ((immed >> 5) == 1) {
             immed |= SIGN_EXT6;
@@ -372,8 +372,6 @@ int controller (CPU_p cpu) {
                     case LEA:
                         break;
                     case STR:
-                        alu.a = cpu->reg_file[rs1];
-                        alu.b = cpu->sext;
                         break;
                 }
                 state = FETCH_OP;
@@ -429,6 +427,14 @@ int controller (CPU_p cpu) {
                         alu.a = cpu->pc;
                         alu.b = cpu->sext;
                         break;
+                    case STR:
+                        MAR = cpu->reg_file[rs1] + cpu->sext;
+                        MDR = cpu->reg_file[rd];
+                        break;
+                    case LDR:
+                        MAR = cpu->reg_file[rs1] + cpu->sext;
+                        MDR = memory[MAR];
+                        break;
                 }
                 state = EXECUTE;
                 break;
@@ -466,7 +472,6 @@ int controller (CPU_p cpu) {
                         alu.r = alu.a + alu.b;
                         break;
                     case STR:
-                        alu.r = alu.a + alu.b;
                         break;
                 }
                 state = STORE;
@@ -537,7 +542,10 @@ int controller (CPU_p cpu) {
                         setCC(alu.r);
                         break;
                     case STR:
-                        memory[alu.r] = cpu->reg_file[rd];
+                        memory[MAR] = MDR;
+                        break;
+                    case LDR:
+                        cpu->reg_file[rd] = MDR;
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
