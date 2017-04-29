@@ -416,7 +416,6 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LEA:
-                    immed_offset = sext(cpu->ir & IMMED11_MASK, EXIT);
                         break;
                 }
                 state = EXECUTE;
