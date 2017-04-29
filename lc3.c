@@ -426,8 +426,11 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LEA:
+<<<<<<< HEAD
+=======
                         alu.a = cpu->pc;
                         alu.b = cpu->sext;
+>>>>>>> origin/master
                         break;
                 }
                 state = EXECUTE;
