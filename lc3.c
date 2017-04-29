@@ -260,7 +260,7 @@ void sext(CPU_p cpu) {
         }
     } else if (opcode == JSR) {
         immed &= IMMED11_MASK;
-        if ((immed >> 10) == 0) { //JSRR
+        if ((immed >> 10) == 1) { //JSR
             immed |= SIGN_EXT11;
         }
     }
@@ -416,7 +416,6 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LEA:
-                        MAR = cpu->sext + cpu->pc;
                         break;
                 }
                 state = EXECUTE;
@@ -514,9 +513,8 @@ int controller (CPU_p cpu) {
                         cpu->pc = alu.r;
                         break;
                     case LEA:
-                        MDR = memory[MAR];
-                        cpu->reg_file[rd] = MDR;
-                        setCC(MDR);
+                        cpu->reg_file[rd] = cpu->pc + cpu->sext;
+                        setCC(cpu->reg_file[rd]);
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
