@@ -253,7 +253,7 @@ void sext(CPU_p cpu) {
             immed |= SIGN_EXT5;
         }
     }
-    else if(opcode == LD || opcode == ST || opcode == BR) {
+    else if(opcode == LD || opcode == ST || opcode == BR || opcode == LEA) {
         immed &= IMMED9_MASK;
         if((immed >> 8) == 1) {
             immed |= SIGN_EXT9;
