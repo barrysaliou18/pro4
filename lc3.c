@@ -1,503 +1,520 @@
-/*
-	lc3.c
-	
-	Programmer: George Mobus
-	Date: 4/18/17
-	Version: 1.0
-
-	Edited: Carter Odem, Mamadou Barry
-	Date: 4/20/2017
-	
-	Simulates the simulation of the LC-3 computer in Patt & Patel
-*/
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <ncurses.h>
 #include "lc3.h"
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <ncurses.h>
 
-Register sext(Register immed, int extend)
-{
-    if (immed & extend)
-    {
-	switch (extend)
-	{
-	case EXT5:
-	    immed |= NEG5;
-	    break;
-	case EXT6:
-	    immed |= NEG6;
-	    break;
-	case EXT9:
-	    immed |= NEG9;
-	    break;
-	case EXT11:
-	    immed |= NEG11;
-	    break;
-	}
+int main(int argc, char *argv[]) {
+    CPU_p cpu = malloc(sizeof(CPU_s));
+    cpu->pc = 0x3000; //initialize PC to 0
+    cpu->ir = 0;
+    setCC(0); //initialize cc nzp = 010
+    int i;
+    for(i = 0; i < 8; i++) {
+        cpu->reg_file[i] = 0;
     }
-    return immed;
+    cpu->reg_file[1] = 0x0005;
+    cpu->reg_file[2] = 0x000F;
+    cpu->reg_file[3] = 0x4321;
+    cpu->reg_file[4] = 0x1234;
+    cpu->reg_file[5] = 0x1010;
+    cpu->reg_file[6] = 0xf1f1;
+    cpu->reg_file[7] = 0x7777;
+    
+    initscr();
+    cbreak();
+    for(;;) {
+        printScreen(cpu);
+        userSelection(cpu);
+    }
+    return 0;
 }
 
-int setCC(CPU_p cpu)
-{
-    int sign_bit;
-    cpu->psr &= CC_CLEAR_MASK; // clear CC flags in PSR
-    if (cpu->main_bus == 0)
-	cpu->psr |= ZERO_FLAG_MASK;
-    sign_bit = (int)(cpu->main_bus & SIGN_BIT_MASK);
-    if (sign_bit)
-	cpu->psr |= NEG_FLAG_MASK;
-    else
-	cpu->psr |= POS_FLAG_MASK;
-}
-
-int controller(CPU_p cpu, Register mem[])
-{
-    // check to make sure both pointers are not NULL
-    // do any initializations here
-    unsigned int opcode;
-    unsigned int dr;
-    unsigned int sr1;
-    unsigned int sr2;
-    unsigned int bit5;
-    unsigned int bit11;
-    unsigned int immed_offset; // fields for the IR
-    unsigned int effective_addr;
-    int ben;
-    int sign_bit;
-    int flag = 0;
-
-    // fill the registers with random numbers to start off in final simulation code.
-
-    int state = FETCH;
-
-    while (flag == 0)
-    { // efficient endless loop
-	switch (state)
-	{
-
-	case FETCH: // microstates 18, 33, 35 in the book
-		    //printf("Here in FETCH\n");
-		    // microstates
-	    flag = textgui(cpu, mem);
-
-	    cpu->mar = cpu->pc;
-	    cpu->pc++;
-	    cpu->mdr = mem[(cpu->mar - 0x3000) + 1]; // ignore time delays
-	    cpu->main_bus = cpu->mdr;
-	    cpu->ir = cpu->main_bus;
-
-	    // get memory[PC] into IR - memory is a global array
-	    // increment PC
-	    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	    // put //printf statements in each state and microstate to see that it is working
-	    //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-	    state = DECODE;
-	    break;
-	case DECODE: //
-	    //printf("Here in DECODE\n");
-	    opcode = (cpu->ir & OPCODE_MASK) >> OPCODE_SHIFT;
-	    // OK to extract registers
-	    dr = (cpu->ir & DR_MASK) >> DR_SHIFT;
-	    sr1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
-	    sr2 = cpu->ir & SR2_MASK;
-	    bit5 = (cpu->ir & BIT5_MASK ? 1 : 0);
-        bit11 = (cpu->ir & BIT11_MASK ? 1 : 0);
-
-	    ben = (((cpu->ir & NEG_BIT_MASK) >> 11) & ((cpu->psr & NEG_FLAG_MASK) >> 2)) |
-		  (((cpu->ir & ZERO_BIT_MASK) >> 11) & ((cpu->psr & ZERO_FLAG_MASK) >> 1)) |
-		  (((cpu->ir & POS_BIT_MASK) >> 11) & (cpu->psr & POS_FLAG_MASK));
-
-	    state = EVAL_ADDR;
-	    //printf("opcode = %02X, dr = %02X, sr1 = %02X, sr2 = %02X\n", opcode, dr, sr1, sr2);
-	    break;
-	case EVAL_ADDR: //
-			//printf("Here in EVAL_ADDR\n");
-	    switch (opcode)
-	    { // microstates
-	      // compute effective address, e.g. add sext(immed7) to register
-	    case ADD:
-	    case AND:
-		if (bit5)
-		{
-		    immed_offset = sext(cpu->ir & IMM5_MASK, EXT5);
-		}
-		break;
-	    case NOT: // nothing needed
-		break;
-	    case TRAP:
-		immed_offset = cpu->ir & TRAP_VECT8_MASK; // same as ZEXT
-		break;
-	    case LD: // these 3 need offset 9 address
-	    case ST:
-	    case BR:
-		immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9);
-		effective_addr = immed_offset + cpu->pc;
-		cpu->mar = effective_addr;
-		break;
-	    case JMP: // nothing needed
-		break;
-        case JSRR:
-        cpu->reg_file[7] = cpu->pc;
-        break;
-        case LEA: //nothing needed
-        break;
-        case RET: //nothing needed
-        break;
-	    }
-	    state = FETCH_OP;
-	    break;
-	case FETCH_OP: // Look at ST. Microstate 23 example of getting a value out of a register
-	    //printf("Here in FETCH_OP\n");
-	    switch (opcode)
-	    {
-	    // get operands out of registers into A, B of ALU
-	    // or get memory for load instr.
-	    case ADD:
-	    case AND:
-		cpu->alu->A = cpu->reg_file[sr1];
-		if (!bit5)
-		{
-		    cpu->alu->B = cpu->reg_file[sr2];
-		}
-		else
-		    cpu->alu->B = immed_offset; // second operand
-		break;
-	    case NOT:
-		cpu->alu->A = cpu->reg_file[sr1];
-		break;
-	    case TRAP:
-		break;
-	    case LD:
-		cpu->mdr = mem[cpu->mar - 0x3000];
-		break;
-	    case ST:
-		cpu->mdr = cpu->reg_file[dr]; // in this case dr is actually the source reg
-		break;
-	    case JMP:
-		// nothing
-		break;
-	    case BR:
-		// nothing
-		break;
-        case JSRR:
-        if (bit11) { //bit 11 is 1
-            cpu->alu->A = cpu->pc;
-            cpu->alu->B = sext(cpu->ir & OFFSET11_MASK, EXT11);
-        } else {
-            cpu->alu->A = 0;
-            cpu->alu->B = cpu->reg_file[sr1];
-        }
-        break;
-        case LEA:
-        immed_offset = sext(cpu->ir & OFFSET9_MASK, EXT9);
-        break;
-        case RET: //nothing needed
-        break;
-	    }
-	    state = EXECUTE;
-	    break;
-	case EXECUTE: // Note that ST does not have an execute microstate
-		      //printf("Here in EXECUTE\n");
-	    switch (opcode)
-	    {
-	    // do what the opcode is for, e.g. ADD
-	    // in case of TRAP: call trap(int trap_vector) routine, see below for TRAP x25 (HALT)
-	    case ADD:
-		cpu->alu->R = cpu->alu->A + cpu->alu->B;
-		break;
-	    case AND:
-		cpu->alu->R = cpu->alu->A & cpu->alu->B;
-		break;
-	    case NOT:
-		cpu->alu->R = ~cpu->alu->A;
-		break;
-	    case TRAP:
-		break;
-	    case LD:
-		break;
-	    case ST:
-		break;
-	    case JMP:
-		cpu->pc = cpu->reg_file[sr1]; // sr1 == base reg.
-		break;
-	    case BR:
-		if (ben)
-		    cpu->pc = effective_addr;
-		break;
-        case JSRR:
-        cpu->alu->R = cpu->alu->A + cpu->alu->B;
-        break;
-        case LEA: //nothing needed
-        break;
-        case RET: //nothing needed
-        break;
-	    }
-	    state = STORE;
-	    break;
-	case STORE: // Look at ST. Microstate 16 is the store to memory
-		    //printf("Here in STORE\n");
-	    switch (opcode)
-	    {
-	    // write back to register or store MDR into memory
-	    case ADD:
-	    case AND:
-	    case NOT:
-		cpu->main_bus = cpu->alu->R;
-		cpu->reg_file[dr] = cpu->main_bus;
-		setCC(cpu);
-		break;
-	    case TRAP:
-		if (immed_offset == 0x21) { //out
-			char input = cpu->reg_file[0];
-			char *ip = &input;
-			printf("%c", input);
-			textoutput = append(textoutput, ip);
-		} 
-		if (immed_offset == 0x20) { //getch
-			scanf("%c", &cpu->reg_file[0]);
-		}
-		break;
-	    case LD:
-		cpu->main_bus = cpu->mdr;
-		cpu->reg_file[dr] = cpu->main_bus;
-		setCC(cpu);
-		break;
-	    case ST:
-		mem[cpu->mar - 0x3000] = cpu->mdr;
-		break;
-	    case JMP:
-		// nothing
-		break;
-	    case BR:
-		// nothing
-		break;
-        case JSRR:
-        cpu->pc = cpu->alu->R;
-        break;
-        case LEA:
-        cpu->main_bus = immed_offset;
-        cpu->reg_file[dr] = cpu->main_bus;
-        setCC(cpu);
-        break;
-        case RET:
-        cpu->pc = cpu->reg_file[7];
-        break;
-	    }
-
-	    state = FETCH;
-
-	    break;
-	}
+//prints errors and waits for enter key
+void error(char *s) {
+    printw("%s", s);
+    //getchar(); //clear '\n' from stream
+    char c = 0;
+    while(c != '\r' && c != '\n') {
+        c = getch();
+        //c = getchar();
     }
 }
-
-int textgui(CPU_p cpu, Register mem[])
-{
+//Reads in a file of hex coded lc3 instructions and places them into memeory
+int readInFile(char *fileName) {
     FILE *file;
-    char mesg[] = ">";
-    char str[80];
-    char filename[80];
-    int i = 1;
-    int count;
-    char *temp;
-    int flag = 0;
-    unsigned short currentMemLocation = 0;
-    unsigned short aMemLocation = currentMemLocation;
+    file = fopen(fileName, "r");
+    if (file == NULL) {
+        return 1;
+    }
+    char buffer[5];
+    int i = 0;
+    while (fscanf(file, "%s", buffer) != EOF && i <= MAXMEM) {
+        if (i == 0) {
+            memPointer = strtol(buffer, NULL, 16);
+            orig = memPointer;
+            i = memPointer;
+        } else {
+            memory[i] = strtol(buffer, NULL, 16);
+            i++;
+        }
+    }
+    return 0;
+}
 
-    initscr(); /* start the curses mode */
+int indexBP = 0;
+void setBreakPoint(int address) {
+    if (indexBP < 10) {
+        breakPoints[indexBP++] = address;
+    } else {
+        error("Error: Too many break points. Press <ENTER> to continue.");
+    }
+}
 
-     mvprintw(1, 10, "Welcome To the Lc3 Simulator^2");
-    mvprintw(3, 5, "Registers");
-    mvprintw(3, 30, "Memory");
-    //instructions
-    mvprintw(20, 3, "[1.Load]");
-    mvprintw(20, 12, "[3.Step]");
-    mvprintw(20, 21, "[5.Display Memory] [9.exit]");
-	
+int isBreakPoint(int address) {
+    int i;
+    for (i = 0; i < indexBP; i++) {
+        if (breakPoints[i] == address) {
+            return 1;
+        }
+    }
+    return 0;
+}
 
-    while (flag == 0)
-    {
-
-	aMemLocation = currentMemLocation;
-	move(22, 4);
-	clrtoeol();
-	mvprintw(22, 4, "%s", mesg);
-
-	//memory
-	count = 0;
-	i = aMemLocation;
-
-
-	while (count < 16)
-	{
-	    move(4 + count, 27);
-	    clrtoeol();
-	    mvprintw(4 + count, 28, "x%04X:", (mem[0] + aMemLocation));
-	    mvprintw(4 + count, 35, "x%04X", mem[i + 1]);
-	    aMemLocation++;
-	    count++;
-	    i++;
-	}
-	if (cpu->pc - mem[0] + 4 < 20)
-	{
-	    mvprintw((cpu->pc - mem[0]) + 4, 27, ">");
-	}
-	//Registers
-	i = 0;
-	while (i < 8)
-	{
-	    mvprintw(5 + i, 5, "R%d:", i);
-	    mvprintw(5 + i, 12, "x%04X", cpu->reg_file[i]);
-	    i++;
-	}
-	// specialty regesters
+/*
+ Prints all the information to the screen.
+ */
+void printScreen(CPU_p cpu) {
+    int i;
+    start_color();
+    init_pair(1, COLOR_WHITE, COLOR_RED);
+    mvprintw(0, 5, "Welcome to the LC3 Simulator Simulator");
+    mvprintw(2, 5, "Registers");
+    for (i = 0; i < 8; i++) { //print out registers
+        mvprintw((4 + i), 5, "R%d: x%04X", i, cpu->reg_file[i]);
+    }
+    
+    mvprintw(2, 30, "Memory");
+    int j;
+    for (j = 0; j < 15; j++) { //print out memory
+        mvprintw((4+j), 30, "%04X: x%04X", memPointer+j, memory[memPointer+j]);
+        mvprintw((4+j), 27, checkDebugPointer(j, cpu));
+        if (isBreakPoint(memPointer+j)) {
+            attron(COLOR_PAIR(1));
+            mvprintw((4+j), 26, " ");
+            attroff(COLOR_PAIR(1));
+        }
+    }
+    
+    // specialty regesters
 	mvprintw(14, 3, "PC:x%04X", cpu->pc);
 	mvprintw(14, 15, "IR:x%04X", cpu->ir);
-	mvprintw(15, 3, "MDR:x%04X", cpu->mdr);
-	mvprintw(15, 15, "MAR:x%04X", cpu->mar);
-	mvprintw(16, 3, "A:x%04X", cpu->alu->A);
-	mvprintw(16, 15, "B:x%04X", cpu->alu->B);
-	mvprintw(17, 3, "CC:");
+	mvprintw(15, 3, "MDR:x%04X", MDR);
+	mvprintw(15, 15, "MAR:x%04X", MAR);
+	mvprintw(16, 3, "A:x%04X", alu.a);
+	mvprintw(16, 15, "B:x%04X", alu.b);
+	mvprintw(17, 3, "CC: N: %d Z: %d P: %d", n, z, p);
+    
+    //user options
+    mvprintw(20, 1, "Select: 1)Load, 2)Run, 3)Step, 5)Display Mem, 7)Break Points, 9)Exit");
+    
+    //selection input
+    move(21,1);
+    clrtoeol();
+    mvprintw(21, 1, ">");
+    
+    //divider
+    mvprintw(22, 1, "----------------------------------------------------");
+    
+    //program input/output area
+    mvprintw(23, 5, "Input:");
+    mvprintw(24, 5, "Output:");
+    
+    //reset cursor position
+    resetCursor();
+}
 
-	int p = cpu->psr & POS_FLAG_MASK;
-	int z = (cpu->psr & ZERO_FLAG_MASK) >> 1;
-	int n = (cpu->psr & NEG_FLAG_MASK) >> 2;
+void resetCursor() {
+    move(21, 2);
+}
 
-	mvprintw(17, 7, "N:%d", n);
-	mvprintw(17, 11, "P:%d", p);
-	mvprintw(17, 15, "Z:%d", z);
-	
-	mvprintw(24, 4, "Output: %s", textoutput);
+char* checkDebugPointer(int i, CPU_p cpu) {
+    return (memPointer+i) == cpu->pc ? "->x" : "  x";
+}
 
-	mvprintw(22, 4, "%s", mesg);
-	getstr(str);
-
-	if (str[0] == '1')
-	{
-	    move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "Please enter a text file");
-	    move(22, 4);
-	    clrtoeol();
-	    mvprintw(22, 4, "%s", mesg);
-	    getstr(filename);
-
-	    file = fopen(filename, "r");
-	    if (file)
-	    {
-		i = 0;
-		while (fread(str, 1, 6, file) == 6)
-		{
-		    mem[i] = strtol(str, &temp, 16);
-		    i++;
-		}
-		move(23, 4);
-		clrtoeol();
-		mvprintw(23, 4, "File %s loaded successful", filename);
-		cpu->pc = mem[0];
-	    }
-	    else
-	    {
-		move(23, 4);
-		clrtoeol();
-		mvprintw(23, 4, "##Error404: File Not Found");
-	    }
-	}
-	else if (str[0] == '3')
-	{
-	    if (cpu->ir == 0xF025)
-	    {
-		move(23, 4);
-		clrtoeol();
-		cpu->pc = mem[0];
-		mvprintw(23, 4, "HALT HAS BEEN REACHED PC set to x%04X", cpu->pc);
-	    } else if (cpu->ir == 0xF020) {
-		move(23, 4);
-		clrtoeol();
-		mvprintw(23, 4, "Enter a character");
-		} else {
-		move(23, 4);
-		clrtoeol();
-		mvprintw(23, 4, "Steping through");
-	    }
-
-	    return 0;
-	}
-	else if (str[0] == '5')
-	{	
-		int set = 0;
-    	char *temp;
-		move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "Please enter a Memory address");
-		while(set==0)
-		{
-		set = 1;
-	
-
-	    move(22, 4);
-	    clrtoeol();
-	    mvprintw(22, 4, "%s", mesg);
-	    getstr(str);
-
-	    currentMemLocation = strtol(str, &temp, 16) - mem[0];
-	
-		if(currentMemLocation > 100)
-		{
-   		move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "Error pls enter valid address");
-		set = 0;
-		}else
-		{
-	    move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "moving to location %X", currentMemLocation + mem[0]);
-		}
-		
-		}
-
-	}
-	else if (str[0] == '9')
-	{
-		move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "Program exiting: press return to exit");
-	    move(22, 4);
-	    clrtoeol();
-	    mvprintw(22, 4, "%s", mesg);
-	    getstr(str);
-		endwin();
-	    return 1;
-	}
-	else
-	{
-	    move(23, 4);
-	    clrtoeol();
-	    mvprintw(23, 4, "Input error try again");
-	}
+void userSelection(CPU_p cpu) {
+    char fileName[256];
+    int status;
+    int input;
+    char str[5];
+    char selection[2];
+    getstr(selection);
+    int select;
+    sscanf(selection, "%d", &select);
+    switch(select) {
+        case LOAD:
+            printScreen(cpu);
+            printw("1 File name: ");
+            getstr(fileName);
+            //scanf("%s", fileName);
+            status = readInFile(fileName);
+            if(status) {
+                printScreen(cpu);
+                error("Error: File not found. Press <ENTER> to continue.");
+            }
+            programLoaded = 1; //enable program stepping
+            cpu->pc = memPointer;
+            setCC(0); //set cc nzp = 010
+            //set flag to allow stepping
+            break;
+        case RUN:
+            printScreen(cpu);
+            if (programLoaded) {
+                runEnabled = 1;
+                while (runEnabled) {
+                    controller(cpu);
+                } 
+            } else {
+                error("Error: Program not loaded. Press <ENTER> to continue.");
+            }
+            break;
+        case STEP:
+            printScreen(cpu);
+            if(programLoaded) {
+                controller(cpu);
+            } else {
+                error("Error: Program not loaded. Press <ENTER> to continue.");
+            }
+            break;
+        case DISMEM:
+            printScreen(cpu);
+            printw("5 Go To Address: 0x");
+            getstr(str);
+            sscanf(str, "%x", &input);
+            //scanf("%x", &input);
+            if (input < MINMEM || input > 0xffef) {
+                error("Error: Out of memory range. Press <ENTER> to continue.");
+            } else {
+                memPointer = input;
+            }
+            break;
+        case BREAK:
+            printScreen(cpu);
+            printw("7 Enter Address For Break Point: 0x");
+            getstr(str);
+            sscanf(str, "%x", &input);
+            if (input < MINMEM || input > MAXMEM) {
+                error("Error: Out of memory range. Press <ENTER> to continue.");
+            } else {
+                setBreakPoint(input);
+            }
+            break;
+        case EXIT:
+            resetCursor();
+            printw("9 Thanks for using LC3 Simulator Simulator!\n");
+            getch();
+            free(cpu);
+            endwin();
+            exit(0);
+            break;
+        default:
+            break;
     }
 }
 
-char* append(char* str1, char* str2) {
-	char* str3 = (char*) malloc(1 + strlen(str1) + strlen(str2));
-	strcpy(str3, str1);
-	strcat(str3, str2);
-	return str3;
+void parseIR(CPU_p cpu) {
+    if(opcode == ADD || opcode == AND || opcode == NOT) {
+        rd = (cpu->ir & DR_MASK) >> 9;
+        rs1 = (cpu->ir & SR1_MASK) >> 6;
+        rs2 = cpu->ir & SR2_MASK;
+    }
+    else if(opcode == LD || opcode == LEA) {
+        rd = (cpu->ir & DR_MASK) >> 9;
+    }
+    else if(opcode == ST) {
+        rs1 = (cpu->ir & DR_MASK) >> 9;
+    }
+    else if(opcode == JMP || opcode == JSR) {
+        rs1 = (cpu->ir & SR1_MASK) >> 6;
+    }
 }
 
-int main(int argc, char *argv[])
-{
-    Register memory[100];
+/* sext
+ *  Takes the 7 low-bits from the IR and bus the result to the
+ *  sign extension Register and masks the 7 low-bits if there is a
+ *  1 in the highest bit. Returns the sign extension Register.
+ */
+void sext(CPU_p cpu) {
+    Register immed = cpu->ir;
+    if(opcode == ADD || opcode == AND){
+        immed &= IMMED5_MASK;
+        if((immed >> 4) == 1) {
+            immed |= SIGN_EXT5;
+        }
+    }
+    else if(opcode == LD || opcode == ST || opcode == BR) {
+        immed &= IMMED9_MASK;
+        if((immed >> 8) == 1) {
+            immed |= SIGN_EXT9;
+        }
+    } else if (opcode == JSR) {
+        immed &= IMMED11_MASK;
+        if ((immed >> 10) == 0) { //JSRR
+            immed |= SIGN_EXT11;
+        }
+    }
+    cpu->sext = immed;
+}
+void setBEN(CPU_p cpu) {
+    if(((cpu->ir & N_MASK) && n)
+       || ((cpu->ir & Z_MASK) && z)
+       || ((cpu->ir & P_MASK) && p)) {
+        BEN = 1;
+        //		printf("branch enabled\n");
+    }
+    else {
+        BEN = 0;
+        //		printf("branch not enabled\n");
+    }
+}
+void setImmMode(Register ir) {
+    if (ir & BIT_FIVE_MASK){ //[5] = 1
+        immMode = 1;
+    } else {
+        immMode = 0;
+    }
+}
 
-    CPU_p cpu = (CPU_p)malloc(sizeof(CPU_s));
-    cpu->alu = (ALU_p)malloc(sizeof(ALU_s));
+void setCC(short compVal) {
+    if (compVal < 0) {
+        n = 1;
+        z = 0;
+        p = 0;
+    } else if (compVal) {
+        n = 0;
+        z = 0;
+        p = 1;
+    } else {
+        n = 0;
+        z = 1;
+        p = 0;
+    }
+}
 
+int row = 0;
+int column = 0;
+void output(char c) {
+    move(24 + column, 13 + row);
+    printw("%c", c);
+    if (c == '\n') {
+        row = 0;
+        column++;
+    } else {
+        row++;
+    }
+}
 
-    controller(cpu, memory);
-	free(cpu->alu);
-	free(cpu);
-	return 0;
+int controller (CPU_p cpu) {
+    // do any initializations here
+    int state = FETCH;
+    for (;;) {   // efficient endless loop
+        switch (state) {
+            case FETCH: // microstates 18, 33, 35 in the book
+                MAR = cpu->pc;
+                cpu->pc += 1;
+                MDR = memory[MAR];
+                cpu->ir = MDR;
+               	state = DECODE;
+                break;
+            case DECODE: // microstate 32
+                setBEN(cpu);
+                setImmMode(cpu->ir);
+                opcode = cpu->ir >> 12;
+                state = EVAL_ADDR;
+                break;
+            case EVAL_ADDR: // Look at the LD instruction to see microstate 2 example
+                sext(cpu);
+                switch (opcode) {
+                        // different opcodes require different handling
+                        // compute effective address, e.g. add sext(immed7) to register
+                    case ADD: //nothing to do
+                        break;
+                    case AND: //nothing to do
+                        break;
+                    case NOT: //nothing to do
+                        break;
+                    case TRAP:
+                        MAR = cpu->ir & ZEXT;
+                        MDR = memory[MAR];
+                        cpu->reg_file[7] = cpu->pc;
+                        //cpu->pc = MDR;
+                        break;
+                    case LD:
+                        MAR = cpu->pc + cpu->sext;
+                        break;
+                    case ST:
+                        MAR = cpu->pc + cpu->sext;
+                        break;
+                    case JMP: //nothing to do
+                        break;
+                    case BR: //nothing to do
+                        break;
+                    case JSR:
+                        cpu->reg_file[7] = cpu->pc;
+                        break;
+                    case LEA:
+                        break;
+                }
+                state = FETCH_OP;
+                break;
+            case FETCH_OP: // Look at ST. Microstate 23 example of getting a value out of a register
+                parseIR(cpu);
+                switch (opcode) {
+                        // get operands out of registers into A, B of ALU
+                        // or get memory for load instr.
+                    case ADD:
+                        if (immMode) {
+                            alu.a = cpu->reg_file[rs1];
+                            alu.b = cpu->sext;
+                        } else {
+                            alu.a = cpu->reg_file[rs1];
+                            alu.b = cpu->reg_file[rs2];
+                        }
+                        break;
+                    case AND:
+                        if (immMode) {
+                            alu.a = cpu->reg_file[rs1];
+                            alu.b = cpu->sext;
+                        } else {
+                            alu.a = cpu->reg_file[rs1];
+                            alu.b = cpu->reg_file[rs2];
+                        }
+                        break;
+                    case NOT:
+                        alu.a = cpu->reg_file[rs1];
+                        break;
+                    case TRAP: //nothing to do
+                        break;
+                    case LD:
+                        MDR = memory[MAR];
+                        break;
+                    case ST:
+                        MDR = cpu->reg_file[rs1];
+                        break;
+                    case JMP: //nothing to do
+                        break;
+                    case BR: //nothing to do
+                        break;
+                    case JSR:
+                        if(cpu->ir & BIT11_MASK) { //bit 11 == 1
+                            alu.a = cpu->pc;
+                            alu.b = cpu->sext;
+                        } else {
+                            alu.a = 0;
+                            alu.b = cpu->reg_file[rs1];
+                        }
+                        break;
+                    case LEA:
+                        MAR = cpu->sext + cpu->pc;
+                        break;
+                }
+                state = EXECUTE;
+                break;
+            case EXECUTE: // Note that ST does not have an execute microstate
+                switch (opcode) {
+                        // do what the opcode is for, e.g. ADD
+                        // in case of TRAP: call trap(int trap_vector) routine, see below for TRAP x25 (HALT)
+                    case ADD:
+                        alu.r = alu.a + alu.b;
+                        break;
+                    case AND:
+                        alu.r = alu.a & alu.b;
+                        break;
+                    case NOT:
+                        alu.r = ~(alu.a);
+                        break;
+                    case TRAP: //nothing to do
+                        break;
+                    case LD: //nothing to do
+                        break;
+                    case ST: //nothing to do
+                        break;
+                    case JMP: //also RET
+                        alu.r = rs1;
+                        break;
+                    case BR:
+                        if(BEN){
+                            alu.r = cpu->pc + cpu->sext;
+                        }
+                        break;
+                    case JSR:
+                        alu.r = alu.a + alu.b;
+                        break;
+                    case LEA:
+                        break;
+                }
+                state = STORE;
+                break;
+            case STORE: // Look at ST. Microstate 16 is the store to memory
+                switch (opcode) {
+                        // write back to register or store MDR into memory
+                    case ADD: //sets cc
+                        cpu->reg_file[rd] = alu.r;
+                        setCC(alu.r);
+                        break;
+                    case AND: //sets cc
+                        cpu->reg_file[rd] = alu.r;
+                        setCC(alu.r);
+                        break;
+                    case NOT: //sets cc
+                        cpu->reg_file[rd] = alu.r;
+                        setCC(alu.r);
+                        break;
+                    case TRAP: //nothing to do
+                        if ((cpu->ir & ZEXT) == 0x25) {
+                            cpu->pc = orig;
+                            runEnabled = 0;
+                        }
+                        if ((cpu->ir & ZEXT) == 0x21) { //out
+                            char input = cpu->reg_file[0];
+                            output(input);
+                        } 
+                        if ((cpu->ir & ZEXT) == 0x20) {
+                            resetCursor();
+                            printw("Enter a character.");
+                            cpu->reg_file[0] = getch();
+                        }
+                        break;
+                    case LD: //sets cc
+                        cpu->reg_file[rd] = MDR;
+                        setCC(MDR);
+                        break;
+                    case ST:
+                        memory[MAR] = MDR;
+                        break;
+                    case JMP:
+                        cpu->pc = alu.r;
+                        break;
+                    case BR:
+                        if(BEN){
+                            cpu->pc = alu.r;
+                        }
+                        break;
+                    case JSR:
+                        cpu->pc = alu.r;
+                        break;
+                    case LEA:
+                        MDR = memory[MAR];
+                        cpu->reg_file[rd] = MDR;
+                        setCC(MDR);
+                        break;
+                }
+                // do any clean up here in prep for the next complete cycle
+                state = FETCH;
+                if(isBreakPoint(cpu->pc)) {
+                    runEnabled = 0;
+                }
+                return 0;
+        }
+    }
 }
