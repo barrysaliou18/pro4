@@ -35,11 +35,9 @@ void error(char *s) {
     move(21, 2);
     clrtoeol();
     printw("%s", s);
-    //getchar(); //clear '\n' from stream
     char c = 0;
     while(c != '\r' && c != '\n') {
         c = getch();
-        //c = getchar();
     }
 }
 //Reads in a file of hex coded lc3 instructions and places them into memeory
@@ -101,7 +99,7 @@ void printScreen(CPU_p cpu) {
     for (j = 0; j < 15; j++) { //print out memory
         mvprintw((4+j), 30, "%04X: x%04X", memPointer+j, memory[memPointer+j]);
         mvprintw((4+j), 27, checkDebugPointer(j, cpu));
-        if (isBreakPoint(memPointer+j)) {
+        if (isBreakPoint(memPointer+j)) { //break points
             attron(COLOR_PAIR(1));
             mvprintw((4+j), 26, " ");
             attroff(COLOR_PAIR(1));
@@ -156,7 +154,6 @@ void userSelection(CPU_p cpu) {
             printScreen(cpu);
             printw("1 File name: ");
             getstr(fileName);
-            //scanf("%s", fileName);
             status = readInFile(fileName);
             if(status) {
                 printScreen(cpu);
@@ -166,7 +163,6 @@ void userSelection(CPU_p cpu) {
                 cpu->pc = memPointer;
                 setCC(0); //set cc nzp = 010
             }
-            //set flag to allow stepping
             break;
         case RUN:
             printScreen(cpu);
@@ -229,6 +225,10 @@ void parseIR(CPU_p cpu) {
         rs1 = (cpu->ir & SR1_MASK) >> 6;
         rs2 = cpu->ir & SR2_MASK;
     }
+    else if (opcode == STR) {
+        rd = (cpu->ir & DR_MASK) >> 9;
+        rs1 = (cpu->ir & SR1_MASK) >> 6;
+    }
     else if(opcode == LD || opcode == LEA) {
         rd = (cpu->ir & DR_MASK) >> 9;
     }
@@ -253,6 +253,12 @@ void sext(CPU_p cpu) {
             immed |= SIGN_EXT5;
         }
     }
+    else if (opcode == STR) {
+        immed &= IMMED6_MASK;
+        if ((immed >> 5) == 1) {
+            immed |= SIGN_EXT6;
+        }
+    }
     else if(opcode == LD || opcode == ST || opcode == BR || opcode == LEA) {
         immed &= IMMED9_MASK;
         if((immed >> 8) == 1) {
@@ -260,7 +266,7 @@ void sext(CPU_p cpu) {
         }
     } else if (opcode == JSR) {
         immed &= IMMED11_MASK;
-        if ((immed >> 10) == 1) { //JSR
+        if ((immed >> 10) == 1) {
             immed |= SIGN_EXT11;
         }
     }
@@ -365,6 +371,10 @@ int controller (CPU_p cpu) {
                         break;
                     case LEA:
                         break;
+                    case STR:
+                        alu.a = cpu->reg_file[rs1];
+                        alu.b = cpu->sext;
+                        break;
                 }
                 state = FETCH_OP;
                 break;
@@ -416,6 +426,11 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LEA:
+<<<<<<< HEAD
+=======
+                        alu.a = cpu->pc;
+                        alu.b = cpu->sext;
+>>>>>>> origin/master
                         break;
                 }
                 state = EXECUTE;
@@ -451,6 +466,10 @@ int controller (CPU_p cpu) {
                         alu.r = alu.a + alu.b;
                         break;
                     case LEA:
+                        alu.r = alu.a + alu.b;
+                        break;
+                    case STR:
+                        alu.r = alu.a + alu.b;
                         break;
                 }
                 state = STORE;
@@ -470,28 +489,34 @@ int controller (CPU_p cpu) {
                         cpu->reg_file[rd] = alu.r;
                         setCC(alu.r);
                         break;
-                    case TRAP: //nothing to do
-                        if ((cpu->ir & ZEXT) == 0x25) { //halt
-                            cpu->pc = orig;
-                            runEnabled = 0;
-                        }
-                        if ((cpu->ir & ZEXT) == 0x21) { //out
-                            char input = cpu->reg_file[0];
-                            output(input);
-                        } 
-                        if ((cpu->ir & ZEXT) == 0x20) { //getc
-                            printScreen(cpu);
-                            printw("Enter a character.");
-                            cpu->reg_file[0] = getch();
-                        }
-                        if ((cpu->ir & ZEXT) == 0x22) { //puts
-                            int i = 0;
-                            unsigned short r0 = cpu->reg_file[0];
-                            char c;
-                            for (; c != '\0'; i++) {
-                                c = memory[r0 + i];
-                                output(c);
+                    case TRAP:
+                        switch (cpu->ir & ZEXT) {
+                            case HALT: // 0x25
+                                cpu->pc = orig;
+                                runEnabled = 0; 
+                                break;
+                            case OUT: { // 0x21
+                                char input = cpu->reg_file[0];
+                                output(input);
+                                break;
                             }
+                            case GETC: // 0x20
+                                printScreen(cpu);
+                                printw("Enter a character.");
+                                cpu->reg_file[0] = getch();
+                                break;
+                            case PUTS: { // 0x22
+                                int i = 0;
+                                Register r0 = cpu->reg_file[0];
+                                char c = 1;
+                                for (; c != '\0'; i++) {
+                                    c = memory[r0 + i];
+                                    output(c);
+                                }
+                                break;
+                            }
+                            default:
+                                break;
                         }
                         break;
                     case LD: //sets cc
@@ -513,8 +538,11 @@ int controller (CPU_p cpu) {
                         cpu->pc = alu.r;
                         break;
                     case LEA:
-                        cpu->reg_file[rd] = cpu->pc + cpu->sext;
-                        setCC(cpu->reg_file[rd]);
+                        cpu->reg_file[rd] = alu.r;
+                        setCC(alu.r);
+                        break;
+                    case STR:
+                        memory[alu.r] = cpu->reg_file[rd];
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
