@@ -32,6 +32,8 @@ int main(int argc, char *argv[]) {
 
 //prints errors and waits for enter key
 void error(char *s) {
+    move(21, 2);
+    clrtoeol();
     printw("%s", s);
     //getchar(); //clear '\n' from stream
     char c = 0;
@@ -133,10 +135,6 @@ void printScreen(CPU_p cpu) {
     mvprintw(24, 5, "Output:");
     
     //reset cursor position
-    resetCursor();
-}
-
-void resetCursor() {
     move(21, 2);
 }
 
@@ -213,8 +211,8 @@ void userSelection(CPU_p cpu) {
             }
             break;
         case EXIT:
-            resetCursor();
-            printw("9 Thanks for using LC3 Simulator Simulator!\n");
+            printScreen(cpu);
+            printw("9 Thanks for using LC3 Simulator Simulator!");
             getch();
             free(cpu);
             endwin();
@@ -474,7 +472,7 @@ int controller (CPU_p cpu) {
                         setCC(alu.r);
                         break;
                     case TRAP: //nothing to do
-                        if ((cpu->ir & ZEXT) == 0x25) {
+                        if ((cpu->ir & ZEXT) == 0x25) { //halt
                             cpu->pc = orig;
                             runEnabled = 0;
                         }
@@ -482,10 +480,19 @@ int controller (CPU_p cpu) {
                             char input = cpu->reg_file[0];
                             output(input);
                         } 
-                        if ((cpu->ir & ZEXT) == 0x20) {
-                            resetCursor();
+                        if ((cpu->ir & ZEXT) == 0x20) { //getc
+                            printScreen(cpu);
                             printw("Enter a character.");
                             cpu->reg_file[0] = getch();
+                        }
+                        if ((cpu->ir & ZEXT) == 0x22) { //puts
+                            int i = 0;
+                            unsigned short r0 = cpu->reg_file[0];
+                            char c;
+                            for (; c != '\0'; i++) {
+                                c = memory[r0 + i];
+                                output(c);
+                            }
                         }
                         break;
                     case LD: //sets cc
