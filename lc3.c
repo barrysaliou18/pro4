@@ -103,6 +103,8 @@ void printScreen(CPU_p cpu) {
             attron(COLOR_PAIR(1));
             mvprintw((4+j), 26, " ");
             attroff(COLOR_PAIR(1));
+        } else {
+            mvprintw((4+j), 26, " ");
         }
     }
     
@@ -161,10 +163,11 @@ void userSelection(CPU_p cpu) {
             if(status) {
                 printScreen(cpu);
                 error("Error: File not found. Press <ENTER> to continue.");
+            } else {
+                programLoaded = 1; //enable program stepping
+                cpu->pc = memPointer;
+                setCC(0); //set cc nzp = 010
             }
-            programLoaded = 1; //enable program stepping
-            cpu->pc = memPointer;
-            setCC(0); //set cc nzp = 010
             //set flag to allow stepping
             break;
         case RUN:
