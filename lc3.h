@@ -44,6 +44,7 @@
 #define JSRR 4
 #define LEA 14
 #define STR 7
+#define LDR 6
 #define LOAD 1
 #define RUN 2
 #define STEP 3
