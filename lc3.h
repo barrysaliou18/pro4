@@ -6,6 +6,7 @@
 #define MAXMEM 0xFFFF
 #define MINMEM 0x0000
 #define SIGN_EXT5 0xFFE0
+#define SIGN_EXT6 0xFFC0
 #define SIGN_EXT9 0xFE00
 #define SIGN_EXT11 0xF800
 #define N_MASK 0x0800
@@ -14,6 +15,7 @@
 #define BIT_FIVE_MASK 0x0020
 #define BIT11_MASK 0x0800
 #define IMMED5_MASK 0x001F
+#define IMMED6_MASK 0x003F
 #define IMMED9_MASK 0x01FF
 #define IMMED11_MASK 0x07FF
 #define ZEXT 0x00FF
@@ -30,13 +32,18 @@
 #define AND 5
 #define NOT 9
 #define TRAP 15
+#define HALT 37
+#define OUT 33
+#define PUTS 34
+#define GETC 32
 #define LD 2
 #define ST 3
 #define JMP 12
 #define BR 0
 #define JSR 4
 #define JSRR 4
-#define LEA 13
+#define LEA 14
+#define STR 7
 #define LOAD 1
 #define RUN 2
 #define STEP 3
