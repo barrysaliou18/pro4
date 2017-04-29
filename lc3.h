@@ -73,7 +73,6 @@ static unsigned short MDR = 0;
 static unsigned short rd = 0;
 static unsigned short rs1 = 0;
 static unsigned short rs2 = 0;
-static unsigned short bit11;
 static unsigned short opcode;
 static unsigned short immMode;
 static unsigned short orig;

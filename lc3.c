@@ -452,7 +452,7 @@ int controller (CPU_p cpu) {
                     case ST: //nothing to do
                         break;
                     case JMP: //also RET
-                        alu.r = rs1;
+                        alu.r = cpu->reg_file[rs1];
                         break;
                     case BR:
                         if(BEN){
@@ -512,8 +512,6 @@ int controller (CPU_p cpu) {
                                 }
                                 break;
                             }
-                            default:
-                                break;
                         }
                         break;
                     case LD: //sets cc
