@@ -1,3 +1,8 @@
+/*
+ * Author: Brian Jorgenson
+ *
+ */
+
 #ifndef LC3_H_
 #define LC3_H_
 #include <stdio.h>
@@ -86,7 +91,6 @@ static unsigned int n = 0;
 static ALU_s alu;
 int programLoaded = 0;
 int BEN = 0;
-char* textOut;
 int runEnabled = 0;
 
 void parseIR(CPU_p cpu);
