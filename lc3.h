@@ -1,3 +1,8 @@
+/*
+ * Author: Brian Jorgenson
+ *
+ */
+
 #ifndef LC3_H_
 #define LC3_H_
 #include <stdio.h>
@@ -68,26 +73,6 @@ typedef struct cpu_s {
 } CPU_s;    // the _s designates the type as a structure
 
 typedef CPU_s *CPU_p;
-
-static unsigned short MAR = 0;
-static unsigned short MDR = 0;
-static unsigned short rd = 0;
-static unsigned short rs1 = 0;
-static unsigned short rs2 = 0;
-static unsigned short opcode;
-static unsigned short immMode;
-static unsigned short orig;
-static unsigned short memPointer = 0x3000;
-static unsigned int breakPoints[10];
-static unsigned int memory[65535];
-static unsigned int z = 0;
-static unsigned int p = 0;
-static unsigned int n = 0;
-static ALU_s alu;
-int programLoaded = 0;
-int BEN = 0;
-char* textOut;
-int runEnabled = 0;
 
 void parseIR(CPU_p cpu);
 void sext(CPU_p cpu);

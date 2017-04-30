@@ -1,28 +1,44 @@
+/*
+ *  Author: Brian Jorgenson
+ *
+ */
 #include "lc3.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <ncurses.h>
 
+Register MAR = 0;
+Register MDR = 0;
+Register rd = 0;
+Register rs1 = 0;
+Register rs2 = 0;
+Register opcode;
+Register immMode;
+Register orig;
+Register memPointer = 0x3000;
+Register breakPoints[10];
+Register memory[65535];
+Register z = 0;
+Register p = 0;
+Register n = 0;
+ALU_s alu;
+int programLoaded = 0;
+int BEN = 0;
+int runEnabled = 0;
+
 int main(int argc, char *argv[]) {
     CPU_p cpu = malloc(sizeof(CPU_s));
-    cpu->pc = 0x3000; //initialize PC to 0
+    cpu->pc = 0x3000; //initialize PC to 0x3000
     cpu->ir = 0;
     setCC(0); //initialize cc nzp = 010
     int i;
     for(i = 0; i < 8; i++) {
         cpu->reg_file[i] = 0;
     }
-    cpu->reg_file[1] = 0x0005;
-    cpu->reg_file[2] = 0x000F;
-    cpu->reg_file[3] = 0x4321;
-    cpu->reg_file[4] = 0x1234;
-    cpu->reg_file[5] = 0x1010;
-    cpu->reg_file[6] = 0xf1f1;
-    cpu->reg_file[7] = 0x7777;
     
-    initscr();
-    cbreak();
+    initscr(); // Initialize ncurses
+    cbreak(); // Allow escape keys
     for(;;) {
         printScreen(cpu);
         userSelection(cpu);
@@ -62,7 +78,8 @@ int readInFile(char *fileName) {
     return 0;
 }
 
-int indexBP = 0;
+//Sets a break point at the address
+static int indexBP = 0;
 void setBreakPoint(int address) {
     if (indexBP < 10) {
         breakPoints[indexBP++] = address;
@@ -71,6 +88,7 @@ void setBreakPoint(int address) {
     }
 }
 
+//Checks if the address has a break point at it
 int isBreakPoint(int address) {
     int i;
     for (i = 0; i < indexBP; i++) {
@@ -123,7 +141,7 @@ void printScreen(CPU_p cpu) {
     //selection input
     move(21,1);
     clrtoeol();
-    mvprintw(21, 1, ">");
+    printw(">");
     
     //divider
     mvprintw(22, 1, "----------------------------------------------------");
@@ -136,10 +154,12 @@ void printScreen(CPU_p cpu) {
     move(21, 2);
 }
 
+//Checks for instruction pointer placement
 char* checkDebugPointer(int i, CPU_p cpu) {
     return (memPointer+i) == cpu->pc ? "->x" : "  x";
 }
 
+//Gets user input for commands
 void userSelection(CPU_p cpu) {
     char fileName[256];
     int status;
@@ -219,24 +239,32 @@ void userSelection(CPU_p cpu) {
     }
 }
 
+//Parses the IR getting the Destination Registers and Source Registers
 void parseIR(CPU_p cpu) {
-    if(opcode == ADD || opcode == AND || opcode == NOT) {
-        rd = (cpu->ir & DR_MASK) >> 9;
-        rs1 = (cpu->ir & SR1_MASK) >> 6;
-        rs2 = cpu->ir & SR2_MASK;
-    }
-    else if (opcode == STR || opcode == LDR) {
-        rd = (cpu->ir & DR_MASK) >> 9;
-        rs1 = (cpu->ir & SR1_MASK) >> 6;
-    }
-    else if(opcode == LD || opcode == LEA) {
-        rd = (cpu->ir & DR_MASK) >> 9;
-    }
-    else if(opcode == ST) {
-        rs1 = (cpu->ir & DR_MASK) >> 9;
-    }
-    else if(opcode == JMP || opcode == JSR) {
-        rs1 = (cpu->ir & SR1_MASK) >> 6;
+    switch(opcode) {
+        case ADD:
+        case AND:
+        case NOT:
+            rd = (cpu->ir & DR_MASK) >> 9;
+            rs1 = (cpu->ir & SR1_MASK) >> 6;
+            rs2 = cpu->ir & SR2_MASK;
+            break;
+        case STR:
+        case LDR:
+            rd = (cpu->ir & DR_MASK) >> 9;
+            rs1 = (cpu->ir & SR1_MASK) >> 6;
+            break;
+        case LD:
+        case LEA:
+            rd = (cpu->ir & DR_MASK) >> 9;
+            break;
+        case ST:
+            rs1 = (cpu->ir & DR_MASK) >> 9;
+            break;
+        case JMP:
+        case JSR:
+            rs1 = (cpu->ir & SR1_MASK) >> 6;
+            break;
     }
 }
 
@@ -247,31 +275,41 @@ void parseIR(CPU_p cpu) {
  */
 void sext(CPU_p cpu) {
     Register immed = cpu->ir;
-    if(opcode == ADD || opcode == AND){
-        immed &= IMMED5_MASK;
-        if((immed >> 4) == 1) {
-            immed |= SIGN_EXT5;
-        }
-    }
-    else if (opcode == STR || opcode == LDR) {
-        immed &= IMMED6_MASK;
-        if ((immed >> 5) == 1) {
-            immed |= SIGN_EXT6;
-        }
-    }
-    else if(opcode == LD || opcode == ST || opcode == BR || opcode == LEA) {
-        immed &= IMMED9_MASK;
-        if((immed >> 8) == 1) {
-            immed |= SIGN_EXT9;
-        }
-    } else if (opcode == JSR) {
-        immed &= IMMED11_MASK;
-        if ((immed >> 10) == 1) {
-            immed |= SIGN_EXT11;
-        }
+    switch(opcode) {
+        case ADD:
+        case AND:
+            immed &= IMMED5_MASK;
+            if((immed >> 4) == 1) {
+                immed |= SIGN_EXT5;
+            }
+            break;
+        case STR:
+        case LDR:
+            immed &= IMMED6_MASK;
+            if ((immed >> 5) == 1) {
+                immed |= SIGN_EXT6;
+            }
+            break;
+        case LD:
+        case ST:
+        case BR:
+        case LEA:
+            immed &= IMMED9_MASK;
+            if((immed >> 8) == 1) {
+                immed |= SIGN_EXT9;
+            }
+            break;
+        case JSR:
+            immed &= IMMED11_MASK;
+            if ((immed >> 10) == 1) {
+                immed |= SIGN_EXT11;
+            }
+            break;
     }
     cpu->sext = immed;
 }
+
+//Sets branch enabled
 void setBEN(CPU_p cpu) {
     if(((cpu->ir & N_MASK) && n)
        || ((cpu->ir & Z_MASK) && z)
@@ -284,6 +322,8 @@ void setBEN(CPU_p cpu) {
         //		printf("branch not enabled\n");
     }
 }
+
+//Sets immediate mode on or off
 void setImmMode(Register ir) {
     if (ir & BIT_FIVE_MASK){ //[5] = 1
         immMode = 1;
@@ -292,6 +332,7 @@ void setImmMode(Register ir) {
     }
 }
 
+//Sets the condition code
 void setCC(short compVal) {
     if (compVal < 0) {
         n = 1;
@@ -308,8 +349,9 @@ void setCC(short compVal) {
     }
 }
 
-int row = 0;
-int column = 0;
+static int row = 0;
+static int column = 0;
+//Moves cursor to last output coordinate and outputs the new character
 void output(char c) {
     move(24 + column, 13 + row);
     printw("%c", c);
@@ -382,14 +424,6 @@ int controller (CPU_p cpu) {
                         // get operands out of registers into A, B of ALU
                         // or get memory for load instr.
                     case ADD:
-                        if (immMode) {
-                            alu.a = cpu->reg_file[rs1];
-                            alu.b = cpu->sext;
-                        } else {
-                            alu.a = cpu->reg_file[rs1];
-                            alu.b = cpu->reg_file[rs2];
-                        }
-                        break;
                     case AND:
                         if (immMode) {
                             alu.a = cpu->reg_file[rs1];
@@ -480,13 +514,7 @@ int controller (CPU_p cpu) {
                 switch (opcode) {
                         // write back to register or store MDR into memory
                     case ADD: //sets cc
-                        cpu->reg_file[rd] = alu.r;
-                        setCC(alu.r);
-                        break;
                     case AND: //sets cc
-                        cpu->reg_file[rd] = alu.r;
-                        setCC(alu.r);
-                        break;
                     case NOT: //sets cc
                         cpu->reg_file[rd] = alu.r;
                         setCC(alu.r);
