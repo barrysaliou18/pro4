@@ -1,152 +1,95 @@
-.ORIG x3000
+;Brian Jorgenson
 
-LD R1, IFILE	
-LD R2, IKRIP	
+;Setup
+	.ORIG x3000
+	AND R1, R1, #0	; Clear some registers
+	AND R2, R2, #0
+	AND R3, R3, #0
+	AND R4, R4, #0
+	AND R5, R5, #0
+	AND R6, R6, #0
+    
+    
+;
+; Ask user for 20 char message
+; Temp registers: R4, R3, R2
+; R4 will be the input message character pointer
+; R3 will hold the input message length counter
+; R2 will hold the negative ASCII for enter (xA)
+;
+	LEA R0, MES	; Ask user for message
+	PUTS
+	LD R4, INPUT	; Set R4 at the start of the message memory
+	LD R3, MAXMES	; Set R3 to max message length (#20)
+AGAIN	GETC
+	OUT 
+	JSR CHECKCHAR	; Check for enter character
+	STR R0, R4, #0	; Store character at message pointer
+	ADD R4, R4, #1	; Increment pointer
+	ADD R3, R3, #-1	; Decrement characters that are left
+	BRp AGAIN	; If positive there is still space for more characters
+DONE	AND R0, R0, #0	; Put a terminating character after the message
+	STR R0, R4, #0	
+	BR ENCRYPT	; Goto ENCRYPT
 
-LEA	R0, MESSAGE	
-PUTS	
+; Data used in ASKMESSAGE
+ENTERVAL .FILL xFFF6	; Negative value of ASCII enter
+MES	.STRINGZ "Enter message (20 char limit): "
+MAXMES	.FILL #20	; Max message length
+INPUT	.FILL x3102	; Location of message start   
 
-SE_1	GETC OUT	
+;
+; Check for enter character
+; Temp registers: R2
+; R2 will hold the negative value of ASCII enter/carriage return
+;
+CHECKCHAR
+	LD R2, ENTERVAL	; Set R2 to negative ASCII enter 
+	ADD R2, R0, R2	; Check for enter character
+	BRnp NOTENTER	; If zero it's an enter character
+	BR DONE		; Goto DONE
+NOTENTER RET		; Character was not an enter character, get more characters
 
-NOT R3, R0	
+;
+; Encrypt the message
+; Temp registers: R4, R0
+; R4 will be the message input/output pointer
+; R0 will hold the data to be encrypted
+;
+ENCRYPT
+    ADD R5, R5, #2  ; Set R5 to have the constant key
+    NOT R5, R5      ; 2's comp on key to make it negative
+    ADD R5, R5, #1
+	LD R4, INPUT	; Set pointer to start of message input
+EAGAIN	LDR R0, R4, #0	; Load character to R0 from memory input pointer
+	JSR ENDOFM	; Check if end of message
+	ADD R0, R0, R5	; Add (subtract) the key
+	STR R0, R4, #0	; Save to memory output pointer
+	ADD R4, R4, #1	; Increment pointers
+	BR EAGAIN	; loop
+    
+;
+; End of message?
+;
+ENDOFM
+	ADD R0, R0, #0	; Check if end of message
+	BRnp NOTEND	; If not zero, not end of message
+	STR R0, R3, #0	; Store terminating character at output pointer
+	BR DISPLAY	; Goto DISPLAY, done with encryption/decryption
+NOTEND	RET
 
-ADD	R3, R3, #10	
-ADD	R3, R3, #1	
+;
+; Display encrypted message
+;
+DISPLAY
+    LEA R0, PRESSKEY; output "press any key..." message
+    PUTS
+    GETC            ; wait for input (any)
+	LD R0, INPUT	; Load output location to R0
+	PUTS            ; print encrypted message
 
-BRz	FIM_SE_1	
+	HALT
+PRESSKEY .STRINGZ "Press any key to continue: "
 
-STR	R0, R1, #0	
-
-
-VAL_1	LD	R3, MASK_1
-AND	R4, R0, R3	
-LD	R5, MEMORY_1	
-STR	R4, R5, #0
-
-VAL_2	LD	R3, MASK_11
-		AND	R4, R0, R3	
-
-		ADD	R4, R4, R4	
-		ADD	R4, R4, R4	
-		ADD	R4, R4, R4	
-		LD	R5, MEMORY_2	
-		STR	R4, R5, #0
-
-VAL_100	LD	R3, MASK_CEM	
-AND	R4, R0, R3	
-BRz	VAL_1000
-ADD	R4, R4, #-3	
-
-VAL_1000	LD	R5, MEMORY_3	
-STR	R4, R5, #0
-
-LD	R3, MASK_MIL	
-AND	R4, R0, R3	
-BRz	VAL_10000
-ADD	R4, R4, #-6	
-
-VAL_10000	LD	R5, MEMORY_4	
-STR	R4, R5, #0
-
-LD	R3, MASK_10MIL	
-AND	R4, R0, R3	
-BRz	SOMA
-
-ADD	R4, R4, #-12	
-
-
-SOMA	LD	R5, MEMORY_5	
-STR	R4, R5, #0
-
-
-
-
-AND	R5, R5, #0	
-
-LD R3, MEMORY_1	
-LDR	R4, R3, #0	
-ADD	R5, R5, R4	
-
-LD R3, MEMORY_2	
-LDR	R4, R3, #0	
-ADD	R5, R5, R4	
-
-LD R3, MEMORY_3	
-LDR	R4, R3, #0	
-ADD	R5, R5, R4	
-
-LD R3, MEMORY_4	
-LDR	R4, R3, #0	
-ADD	R5, R5, R4	
-
-LD R3, MEMORY_5	
-LDR	R4, R3, #0	
-ADD	R5, R5, R4	
-
-STR	R5, R2, #0	
-
-
-
-ADD R1, R1, #1	
-ADD R2, R2, #1	
-
-BR SE_1	
-
-FIM_SE_1	
-
-AND	R0, R0, #0 
-ADD	R0, R0, x04 
-STR	R0, R1, #0	
-STR	R0, R2, #0	
-
-
-AND R0, R0, #0 
-AND R1, R1, #0 
-AND R2, R2, #0 
-AND R3, R3, #0 
-AND R4, R4, #0 
-
-LD R2, IKRIP	
-
-LEA	R0, ENCRYTION	
-PUTS	
-
-
-SE_2	LDR R4, R2, #0	
-ADD	R2, R2, #1	
-
-NOT R0, R4	
-ADD	R0, R0, #1	
-
-ADD R0, R0, X04	
-
-BRz	FIM_SE_2	
-
-SENAO_2	AND	R0, R0, #0	
-
-ADD R0, R0, R4	
-OUT	
-
-BR	SE_2
-
-FIM_SE_2	HALT
-
-
-IFILE	.FILL x5000	
-IKRIP	.FILL x6000	
-MESSAGE	.STRINGZ " Enter a MESSAGE. When you finish, press <Enter>: "	
-ENCRYTION	.STRINGZ "MESSAGE encripted "	
-EOF	.FILL #04 
-CHEX	.FILL x-30	
-MASK_1	.FILL xE0	
-MASK_2	.FILL x1F	
-MASK_11	.FILL x03	
-MASK_CEM	.FILL x04	
-MASK_MIL	.FILL x08	
-MASK_10MIL	.FILL x10	
-MEMORY_1	.FILL x5500	
-MEMORY_2	.FILL x5501	
-MEMORY_3	.FILL x5502	
-MEMORY_4	.FILL x5503	
-MEMORY_5	.FILL x5504	
-.END
+	.END
+    
