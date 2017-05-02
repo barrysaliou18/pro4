@@ -1,6 +1,6 @@
 /*
- * Author: Brian Jorgenson
- *
+ * Authors: Brian Jorgenson
+ *          Mamadou Barry
  */
 
 #ifndef LC3_H_
@@ -49,6 +49,10 @@
 #define N_MASK 0x0800
 #define Z_MASK 0x0400
 #define P_MASK 0x0200
+#define PSR_N_MASK 0x0004
+#define PSR_Z_MASK 0x0002
+#define PSR_P_MASK 0x0001
+#define CLEAR_CC 0xFFF8
 #define BIT_FIVE_MASK 0x0020
 #define BIT11_MASK 0x0800
 #define IMMED5_MASK 0x001F
@@ -74,6 +78,8 @@
 #define IMMED6_SIGN_SHIFT 5
 #define IMMED9_SIGN_SHIFT 8
 #define IMMED11_SIGN_SHIFT 10
+#define PSR_N_SHIFT 2
+#define PSR_Z_SHIFT 1
 
 /*----------------------Config-----*/
 #define NO_OF_REGISTERS 8
@@ -81,6 +87,23 @@
 #define MAXMEM 0xFFFF
 #define MINMEM 0x0000
 #define MEM_DISPLAY 16
+#define DEFAULT_PC 0x3000
+
+/*---------Display Coordinates-----*/
+#define MEMORY_X 30
+#define MEMORY_Y 4
+#define REGISTER_X 5
+#define REGISTER_Y 4
+#define USER_SELECTION_OPTIONS_Y 21
+#define USER_INPUT_Y 22
+#define DIVIDER_Y 23
+#define INPUT_Y 24
+#define OUTPUT_Y 25
+#define S_REGISTER_Y 14
+#define S_REGISTER_X 3
+#define S_REGISTER_SPACING 12
+#define OUTPUT_COLUMN 13
+#define OUTPUT_ROW 25
 
 /*--------------------Typedefs-----*/
 typedef uint8_t boolean;
@@ -95,26 +118,25 @@ typedef struct alu_s {
 
 typedef struct cpu_s {
     Register reg_file[NO_OF_REGISTERS];
-    Register ir, pc, MAR, MDR;
-    boolean BEN;
+    Register ir, pc, mar, mdr, psr;
+    boolean ben;
     ALU_s alu;
 } CPU_s;    // the _s designates the type as a structure
 
 typedef CPU_s *CPU_p;
 
 /*------------------Prototypes-----*/
-void parseIR(CPU_p cpu, Register opcode);
-void sext(CPU_p cpu, Register opcode, short* sext);
-int controller (CPU_p cpu);
-void setBEN(CPU_p cpu);
-void setImmMode(Register ir, Register* immMode);
-void setCC(short compVal);
-int readInFile(char *fileName);
-void printScreen(CPU_p cpu);
 void error(char *s);
-void userSelection(CPU_p cpu);
-char* checkDebugPointer(int i, CPU_p cpu);
-char* append(char* str1, char* str2);
-void setBreakPoint(int address);
+char *checkDebugPointer(int i, CPU_p cpu);
+int controller (CPU_p cpu);
 int isBreakPoint(int address);
+void parseIR(CPU_p cpu, Register opcode, Register* rd,  Register* rs1, Register* rs2);
+void printScreen(CPU_p cpu);
+int readInFile(char *fileName);
+void setBEN(CPU_p cpu);
+void setBreakPoint(int address);
+void setCC(short compVal, CPU_p cpu);
+void setImmMode(Register ir, Register *immMode);
+void sext(CPU_p cpu, Register opcode, short *sext);
+void userSelection(CPU_p cpu);
 #endif /* LC3_H_ */

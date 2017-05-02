@@ -1,6 +1,6 @@
 /*
- *  Author: Brian Jorgenson
- *
+ * Authors: Brian Jorgenson
+ *          Mamadou Barry
  */
 #include "lc3.h"
 #include <stdio.h>
@@ -8,21 +8,15 @@
 #include <stdlib.h>
 #include <ncurses.h>
 
-Register rd = 0;
-Register rs1 = 0;
-Register rs2 = 0;
 Register orig;
 Register memPointer = 0x3000;
 Register breakPoints[10];
 Register memory[65535];
-Register z = 0;
-Register p = 0;
-Register n = 0;
 int runEnabled = 0;
 
 int main(int argc, char *argv[]) {
     CPU_p cpu = malloc(sizeof(CPU_s));
-    cpu->pc = 0x3000; //initialize PC to 0x3000
+    cpu->pc = DEFAULT_PC;
     cpu->ir = 0;
     //setCC(0); //initialize cc nzp = 010
     int i;
@@ -41,7 +35,7 @@ int main(int argc, char *argv[]) {
 
 //prints errors and waits for enter key
 void error(char *s) {
-    move(21, 2);
+    move(USER_INPUT_Y, 2);
     clrtoeol();
     printw("%s", s);
     char c = 0;
@@ -100,55 +94,59 @@ void printScreen(CPU_p cpu) {
     start_color();
     init_pair(1, COLOR_WHITE, COLOR_RED);
     mvprintw(0, 5, "Welcome to the LC3 Simulator Simulator");
-    mvprintw(2, 5, "Registers");
-    for (i = 0; i < 8; i++) { //print out registers
-        mvprintw((4 + i), 5, "R%d: x%04X", i, cpu->reg_file[i]);
+    mvprintw(2, REGISTER_X, "Registers");
+    for (i = 0; i < NO_OF_REGISTERS; i++) { //print out registers
+        mvprintw((REGISTER_Y + i), REGISTER_X, "R%d: x%04X", i, cpu->reg_file[i]);
     }
     
-    mvprintw(2, 30, "Memory");
+    mvprintw(2, MEMORY_X, "Memory");
     for (i = 0; i < MEM_DISPLAY; i++) { //print out memory
-        mvprintw((4+i), 30, "%04X: x%04X", memPointer+i, memory[memPointer+i]);
-        mvprintw((4+i), 27, checkDebugPointer(i, cpu));
+        mvprintw((MEMORY_Y + i), MEMORY_X, "x%04X: x%04X", memPointer+i, memory[memPointer+i]);
+        mvprintw((MEMORY_Y + i), MEMORY_X - 2, checkDebugPointer(i, cpu));
         if (isBreakPoint(memPointer+i)) { //break points
             attron(COLOR_PAIR(1));
-            mvprintw((4+i), 26, " ");
+            mvprintw((MEMORY_Y + i), (MEMORY_X - 3), " ");
             attroff(COLOR_PAIR(1));
         } else {
-            mvprintw((4+i), 26, " ");
+            mvprintw((MEMORY_Y + i), (MEMORY_X - 3), " ");
         }
     }
     
     // specialty regesters
-	mvprintw(14, 3, "PC:x%04X", cpu->pc);
-	mvprintw(14, 15, "IR:x%04X", cpu->ir);
-	mvprintw(15, 3, "MDR:x%04X", cpu->MDR);
-	mvprintw(15, 15, "MAR:x%04X", cpu->MAR);
-	mvprintw(16, 3, "A:x%04X", cpu->alu.a);
-	mvprintw(16, 15, "B:x%04X", cpu->alu.b);
-	mvprintw(17, 3, "CC: N: %d Z: %d P: %d", n, z, p);
+	mvprintw(S_REGISTER_Y, S_REGISTER_X, "PC:x%04X", cpu->pc);
+	mvprintw(S_REGISTER_Y + 1, S_REGISTER_X, "MDR:x%04X", cpu->mdr);
+	mvprintw(S_REGISTER_Y + 2, S_REGISTER_X, "A:x%04X", cpu->alu.a);
+	mvprintw(S_REGISTER_Y, (S_REGISTER_X + S_REGISTER_SPACING), "IR:x%04X", cpu->ir);
+	mvprintw(S_REGISTER_Y + 1, (S_REGISTER_X + S_REGISTER_SPACING), "MAR:x%04X", cpu->mar);
+	mvprintw(S_REGISTER_Y + 2, (S_REGISTER_X + S_REGISTER_SPACING), "B:x%04X", cpu->alu.b);
+	mvprintw(S_REGISTER_Y + 3, S_REGISTER_X, "CC: N: %d Z: %d P: %d", 
+        (cpu->psr & PSR_N_MASK) >> PSR_N_SHIFT, 
+        (cpu->psr & PSR_Z_MASK) >> PSR_Z_SHIFT, 
+        (cpu->psr & PSR_P_MASK));
     
     //user options
-    mvprintw(20, 1, "Select: 1)Load, 2)Run, 3)Step, 5)Display Mem, 7)Break Points, 9)Exit");
+    mvprintw(USER_SELECTION_OPTIONS_Y, 1, 
+        "Select: 1)Load, 2)Run, 3)Step, 5)Display Mem, 7)Break Points, 9)Exit");
     
     //selection input
-    move(21,1);
+    move(USER_INPUT_Y, 1);
     clrtoeol();
     printw(">");
     
     //divider
-    mvprintw(22, 1, "----------------------------------------------------");
+    mvprintw(DIVIDER_Y, 1, "----------------------------------------------------");
     
     //program input/output area
-    mvprintw(23, 5, "Input:");
-    mvprintw(24, 5, "Output:");
+    mvprintw(INPUT_Y, 5, "Input:");
+    mvprintw(OUTPUT_Y, 5, "Output:");
     
     //reset cursor position
-    move(21, 2);
+    move(USER_INPUT_Y, 2);
 }
 
 //Checks for instruction pointer placement
 char* checkDebugPointer(int i, CPU_p cpu) {
-    return (memPointer+i) == cpu->pc ? "->x" : "  x";
+    return (memPointer+i) == cpu->pc ? "->" : "  ";
 }
 
 //Gets user input for commands
@@ -173,7 +171,7 @@ void userSelection(CPU_p cpu) {
             } else {
                 programLoaded = true; //enable program stepping
                 cpu->pc = memPointer;
-                setCC(0); //set cc nzp = 010
+                setCC(0, cpu); //set cc nzp = 010
             }
             break;
         case RUN:
@@ -231,30 +229,30 @@ void userSelection(CPU_p cpu) {
 }
 
 //Parses the IR getting the Destination Registers and Source Registers
-void parseIR(CPU_p cpu, Register opcode) {
+void parseIR(CPU_p cpu, Register opcode, Register *rd,  Register *rs1, Register *rs2) {
     switch(opcode) {
         case ADD:
         case AND:
         case NOT:
-            rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
-            rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
-            rs2 = cpu->ir & SR2_MASK;
+            *rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
+            *rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
+            *rs2 = cpu->ir & SR2_MASK;
             break;
         case STR:
         case LDR:
-            rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
-            rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
+            *rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
+            *rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
             break;
         case LD:
         case LEA:
-            rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
+            *rd = (cpu->ir & DR_MASK) >> DR_SHIFT;
             break;
         case ST:
-            rs1 = (cpu->ir & DR_MASK) >> DR_SHIFT;
+            *rs1 = (cpu->ir & DR_MASK) >> DR_SHIFT;
             break;
         case JMP:
         case JSR:
-            rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
+            *rs1 = (cpu->ir & SR1_MASK) >> SR1_SHIFT;
             break;
     }
 }
@@ -264,7 +262,7 @@ void parseIR(CPU_p cpu, Register opcode) {
  *  sign extension Register and masks the 7 low-bits if there is a
  *  1 in the highest bit. Returns the sign extension Register.
  */
-void sext(CPU_p cpu, Register opcode, short* sext) {
+void sext(CPU_p cpu, Register opcode, short *sext) {
     Register immed = cpu->ir;
     switch(opcode) {
         case ADD:
@@ -302,18 +300,18 @@ void sext(CPU_p cpu, Register opcode, short* sext) {
 
 //Sets branch enabled
 void setBEN(CPU_p cpu) {
-    if(((cpu->ir & N_MASK) && n)
-       || ((cpu->ir & Z_MASK) && z)
-       || ((cpu->ir & P_MASK) && p)) {
-        cpu->BEN = true;
+    if(((cpu->ir & N_MASK) && (cpu->psr & PSR_N_MASK))
+       || ((cpu->ir & Z_MASK) && (cpu->psr & PSR_Z_MASK))
+       || ((cpu->ir & P_MASK) && (cpu->psr & PSR_P_MASK))) {
+        cpu->ben = true;
     }
     else {
-        cpu->BEN = false;
+        cpu->ben = false;
     }
 }
 
 //Sets immediate mode on or off
-void setImmMode(Register ir, Register* immMode) {
+void setImmMode(Register ir, Register *immMode) {
     if (ir & BIT_FIVE_MASK){ //[5] = 1
         *immMode = true;
     } else {
@@ -322,19 +320,14 @@ void setImmMode(Register ir, Register* immMode) {
 }
 
 //Sets the condition code
-void setCC(short compVal) {
+void setCC(short compVal, CPU_p cpu) {
+    cpu->psr &= CLEAR_CC;
     if (compVal < 0) {
-        n = 1;
-        z = 0;
-        p = 0;
+        cpu->psr |= PSR_N_MASK;
     } else if (compVal) {
-        n = 0;
-        z = 0;
-        p = 1;
+        cpu->psr |= PSR_P_MASK;
     } else {
-        n = 0;
-        z = 1;
-        p = 0;
+        cpu->psr |= PSR_Z_MASK;
     }
 }
 
@@ -342,13 +335,13 @@ void setCC(short compVal) {
 void output(char c) {
     static int row;
     static int column;
-    move(24 + column, 13 + row);
+    move(OUTPUT_ROW + row, OUTPUT_COLUMN + column);
     printw("%c", c);
     if (c == '\n') {
-        row = 0;
-        column++;
-    } else {
+        column = 0;
         row++;
+    } else {
+        column++;
     }
 }
 
@@ -356,15 +349,18 @@ int controller (CPU_p cpu) {
     // do any initializations here
     Register opcode;
     Register immMode;
+    Register rd;
+    Register rs1;
+    Register rs2;
     short immed;
     int state = FETCH;
     for (;;) {   // efficient endless loop
         switch (state) {
             case FETCH: // microstates 18, 33, 35 in the book
-                cpu->MAR = cpu->pc;
+                cpu->mar = cpu->pc;
                 cpu->pc += 1;
-                cpu->MDR = memory[cpu->MAR];
-                cpu->ir = cpu->MDR;
+                cpu->mdr = memory[cpu->mar];
+                cpu->ir = cpu->mdr;
                	state = DECODE;
                 break;
             case DECODE: // microstate 32
@@ -385,14 +381,14 @@ int controller (CPU_p cpu) {
                     case NOT: //nothing to do
                         break;
                     case TRAP:
-                        cpu->MAR = cpu->ir & ZEXT;
-                        cpu->MDR = memory[cpu->MAR];
+                        cpu->mar = cpu->ir & ZEXT;
+                        cpu->mdr = memory[cpu->mar];
                         cpu->reg_file[7] = cpu->pc;
-                        //cpu->pc = cpu->MDR;
+                        //cpu->pc = cpu->mdr;
                         break;
                     case LD:
                     case ST:
-                        cpu->MAR = cpu->pc + immed;
+                        cpu->mar = cpu->pc + immed;
                         break;
                     case JMP: //nothing to do
                         break;
@@ -409,7 +405,7 @@ int controller (CPU_p cpu) {
                 state = FETCH_OP;
                 break;
             case FETCH_OP: // Look at ST. Microstate 23 example of getting a vcpu->alue out of a register
-                parseIR(cpu, opcode);
+                parseIR(cpu, opcode, &rd, &rs1, &rs2);
                 switch (opcode) {
                         // get operands out of registers into A, B of ALU
                         // or get memory for load instr.
@@ -429,10 +425,10 @@ int controller (CPU_p cpu) {
                     case TRAP: //nothing to do
                         break;
                     case LD:
-                        cpu->MDR = memory[cpu->MAR];
+                        cpu->mdr = memory[cpu->mar];
                         break;
                     case ST:
-                        cpu->MDR = cpu->reg_file[rs1];
+                        cpu->mdr = cpu->reg_file[rs1];
                         break;
                     case JMP: //nothing to do
                         break;
@@ -452,12 +448,12 @@ int controller (CPU_p cpu) {
                         cpu->alu.b = immed;
                         break;
                     case STR:
-                        cpu->MAR = cpu->reg_file[rs1] + immed;
-                        cpu->MDR = cpu->reg_file[rd];
+                        cpu->mar = cpu->reg_file[rs1] + immed;
+                        cpu->mdr = cpu->reg_file[rd];
                         break;
                     case LDR:
-                        cpu->MAR = cpu->reg_file[rs1] + immed;
-                        cpu->MDR = memory[cpu->MAR];
+                        cpu->mar = cpu->reg_file[rs1] + immed;
+                        cpu->mdr = memory[cpu->mar];
                         break;
                 }
                 state = EXECUTE;
@@ -487,7 +483,7 @@ int controller (CPU_p cpu) {
                         cpu->alu.r = cpu->reg_file[rs1];
                         break;
                     case BR:
-                        if(cpu->BEN){
+                        if(cpu->ben){
                             cpu->alu.r = cpu->pc + immed;
                         }
                         break;
@@ -498,19 +494,25 @@ int controller (CPU_p cpu) {
                 break;
             case STORE: // Look at ST. Microstate 16 is the store to memory
                 switch (opcode) {
-                        // write back to register or store MDR into memory
+                        // write back to register or store mdr into memory
                     case ADD: //sets cc
                     case AND: //sets cc
                     case NOT: //sets cc
                         cpu->reg_file[rd] = cpu->alu.r;
-                        setCC(cpu->alu.r);
+                        setCC(cpu->alu.r, cpu);
                         break;
                     case TRAP:
                         switch (cpu->ir & ZEXT) {
-                            case HALT: // 0x25
+                            case HALT: {// 0x25
                                 cpu->pc = orig;
-                                runEnabled = false; 
+                                runEnabled = false;
+                                char halting[] = "\n----- Halting the processor -----\n";
+                                int i;
+                                for(i = 0; halting[i] != '\0'; i++) {
+                                    output(halting[i]);
+                                }
                                 break;
+                            }
                             case OUT: { // 0x21
                                 char input = cpu->reg_file[0];
                                 output(input);
@@ -535,27 +537,27 @@ int controller (CPU_p cpu) {
                         break;
                     case LD: //sets cc
                     case LDR: //sets cc
-                        cpu->reg_file[rd] = cpu->MDR;
-                        setCC(cpu->MDR);
+                        cpu->reg_file[rd] = cpu->mdr;
+                        setCC(cpu->mdr, cpu);
                         break;
                     case ST:
-                        memory[cpu->MAR] = cpu->MDR;
+                        memory[cpu->mar] = cpu->mdr;
                         break;
                     case JMP:
                     case JSR:
                         cpu->pc = cpu->alu.r;
                         break;
                     case BR:
-                        if(cpu->BEN){
+                        if(cpu->ben){
                             cpu->pc = cpu->alu.r;
                         }
                         break;
                     case LEA: //sets cc
                         cpu->reg_file[rd] = cpu->alu.r;
-                        setCC(cpu->alu.r);
+                        setCC(cpu->alu.r, cpu);
                         break;
                     case STR:
-                        memory[cpu->MAR] = cpu->MDR;
+                        memory[cpu->mar] = cpu->mdr;
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
