@@ -264,20 +264,20 @@ void parseIR(CPU_p cpu, Register opcode) {
  *  sign extension Register and masks the 7 low-bits if there is a
  *  1 in the highest bit. Returns the sign extension Register.
  */
-void sext(CPU_p cpu, Register opcode) {
+void sext(CPU_p cpu, Register opcode, short* sext) {
     Register immed = cpu->ir;
     switch(opcode) {
         case ADD:
         case AND:
             immed &= IMMED5_MASK;
-            if((immed >> IMMED5_SIGN_SHIFT) == 1) {
+            if((immed >> IMMED5_SIGN_SHIFT)) {
                 immed |= SIGN_EXT5;
             }
             break;
         case STR:
         case LDR:
             immed &= IMMED6_MASK;
-            if ((immed >> IMMED6_SIGN_SHIFT) == 1) {
+            if ((immed >> IMMED6_SIGN_SHIFT)) {
                 immed |= SIGN_EXT6;
             }
             break;
@@ -286,18 +286,18 @@ void sext(CPU_p cpu, Register opcode) {
         case BR:
         case LEA:
             immed &= IMMED9_MASK;
-            if((immed >> IMMED9_SIGN_SHIFT) == 1) {
+            if((immed >> IMMED9_SIGN_SHIFT)) {
                 immed |= SIGN_EXT9;
             }
             break;
         case JSR:
             immed &= IMMED11_MASK;
-            if ((immed >> IMMED11_SIGN_SHIFT) == 1) {
+            if ((immed >> IMMED11_SIGN_SHIFT)) {
                 immed |= SIGN_EXT11;
             }
             break;
     }
-    cpu->sext = immed;
+    *sext = immed;
 }
 
 //Sets branch enabled
@@ -356,6 +356,7 @@ int controller (CPU_p cpu) {
     // do any initializations here
     Register opcode;
     Register immMode;
+    short immed;
     int state = FETCH;
     for (;;) {   // efficient endless loop
         switch (state) {
@@ -373,7 +374,7 @@ int controller (CPU_p cpu) {
                 state = EVAL_ADDR;
                 break;
             case EVAL_ADDR: // Look at the LD instruction to see microstate 2 example
-                sext(cpu, opcode);
+                sext(cpu, opcode, &immed);
                 switch (opcode) {
                         // different opcodes require different handling
                         // compute effective address, e.g. add sext(immed7) to register
@@ -391,7 +392,7 @@ int controller (CPU_p cpu) {
                         break;
                     case LD:
                     case ST:
-                        cpu->MAR = cpu->pc + cpu->sext;
+                        cpu->MAR = cpu->pc + immed;
                         break;
                     case JMP: //nothing to do
                         break;
@@ -416,7 +417,7 @@ int controller (CPU_p cpu) {
                     case AND:
                         if (immMode) {
                             cpu->alu.a = cpu->reg_file[rs1];
-                            cpu->alu.b = cpu->sext;
+                            cpu->alu.b = immed;
                         } else {
                             cpu->alu.a = cpu->reg_file[rs1];
                             cpu->alu.b = cpu->reg_file[rs2];
@@ -440,7 +441,7 @@ int controller (CPU_p cpu) {
                     case JSR:
                         if(cpu->ir & BIT11_MASK) { //bit 11 == 1
                             cpu->alu.a = cpu->pc;
-                            cpu->alu.b = cpu->sext;
+                            cpu->alu.b = immed;
                         } else {
                             cpu->alu.a = 0;
                             cpu->alu.b = cpu->reg_file[rs1];
@@ -448,14 +449,14 @@ int controller (CPU_p cpu) {
                         break;
                     case LEA:
                         cpu->alu.a = cpu->pc;
-                        cpu->alu.b = cpu->sext;
+                        cpu->alu.b = immed;
                         break;
                     case STR:
-                        cpu->MAR = cpu->reg_file[rs1] + cpu->sext;
+                        cpu->MAR = cpu->reg_file[rs1] + immed;
                         cpu->MDR = cpu->reg_file[rd];
                         break;
                     case LDR:
-                        cpu->MAR = cpu->reg_file[rs1] + cpu->sext;
+                        cpu->MAR = cpu->reg_file[rs1] + immed;
                         cpu->MDR = memory[cpu->MAR];
                         break;
                 }
@@ -487,7 +488,7 @@ int controller (CPU_p cpu) {
                         break;
                     case BR:
                         if(cpu->BEN){
-                            cpu->alu.r = cpu->pc + cpu->sext;
+                            cpu->alu.r = cpu->pc + immed;
                         }
                         break;
                     case STR:
@@ -533,6 +534,7 @@ int controller (CPU_p cpu) {
                         }
                         break;
                     case LD: //sets cc
+                    case LDR: //sets cc
                         cpu->reg_file[rd] = cpu->MDR;
                         setCC(cpu->MDR);
                         break;
@@ -548,16 +550,12 @@ int controller (CPU_p cpu) {
                             cpu->pc = cpu->alu.r;
                         }
                         break;
-                    case LEA:
+                    case LEA: //sets cc
                         cpu->reg_file[rd] = cpu->alu.r;
                         setCC(cpu->alu.r);
                         break;
                     case STR:
                         memory[cpu->MAR] = cpu->MDR;
-                        break;
-                    case LDR:
-                        cpu->reg_file[rd] = cpu->MDR;
-						setCC(cpu->MDR);
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
