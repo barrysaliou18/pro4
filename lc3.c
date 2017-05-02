@@ -574,6 +574,7 @@ int controller (CPU_p cpu) {
                         break;
                     case LDR:
                         cpu->reg_file[rd] = MDR;
+						setCC(MDR);
                         break;
                 }
                 // do any clean up here in prep for the next complete cycle
