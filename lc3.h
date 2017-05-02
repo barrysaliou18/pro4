@@ -56,6 +56,19 @@
 #define DISMEM 5
 #define BREAK 7
 #define EXIT 9
+#define DR_SHIFT 9
+#define SR1_SHIFT 6
+#define OPCODE_SHIFT 12
+#define IMMED11_SIGN_SHIFT 10
+#define IMMED6_SIGN_SHIFT 5
+#define IMMED5_SIGN_SHIFT 4
+#define IMMED9_SIGN_SHIFT 8
+#define MEM_DISPLAY 16
+#define MAXBREAKPOINTS 10
+
+typedef int boolean;
+#define true 1
+#define false 0
 
 typedef unsigned short Register;
 
@@ -66,19 +79,23 @@ typedef struct alu_s {
 } ALU_s;
 
 typedef struct cpu_s {
-		Register reg_file[NO_OF_REGISTERS];
+    Register reg_file[NO_OF_REGISTERS];
     Register ir;
     Register sext;
-    unsigned short pc;
+    Register pc;
+    Register MAR;
+    Register MDR;
+    int BEN;
+    ALU_s alu;
 } CPU_s;    // the _s designates the type as a structure
 
 typedef CPU_s *CPU_p;
 
-void parseIR(CPU_p cpu);
-void sext(CPU_p cpu);
+void parseIR(CPU_p cpu, Register opcode);
+void sext(CPU_p cpu, Register opcode);
 int controller (CPU_p cpu);
 void setBEN(CPU_p cpu);
-void setImmMode(Register ir);
+void setImmMode(Register ir, Register* immMode);
 void setCC(short compVal);
 int readInFile(char *fileName);
 void printScreen(CPU_p cpu);
