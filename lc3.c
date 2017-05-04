@@ -12,7 +12,6 @@ Register orig;
 Register memPointer = 0x3000;
 Register breakPoints[10];
 Register memory[65535];
-int runEnabled = 0;
 
 int main(int argc, char *argv[]) {
     CPU_p cpu = malloc(sizeof(CPU_s));
@@ -177,10 +176,7 @@ void userSelection(CPU_p cpu) {
         case RUN:
             printScreen(cpu);
             if (programLoaded) {
-                runEnabled = true;
-                while (runEnabled) {
-                    controller(cpu);
-                } 
+                while (controller(cpu)) {}
             } else {
                 error("Error: Program not loaded. Press <ENTER> to continue.");
             }
@@ -505,12 +501,12 @@ int controller (CPU_p cpu) {
                         switch (cpu->ir & ZEXT) {
                             case HALT: {// 0x25
                                 cpu->pc = orig;
-                                runEnabled = false;
                                 char halting[] = "\n----- Halting the processor -----\n";
                                 int i;
                                 for(i = 0; halting[i] != '\0'; i++) {
                                     output(halting[i]);
                                 }
+								return false;
                                 break;
                             }
                             case OUT: { // 0x21
@@ -563,9 +559,9 @@ int controller (CPU_p cpu) {
                 // do any clean up here in prep for the next complete cycle
                 state = FETCH;
                 if(isBreakPoint(cpu->pc)) {
-                    runEnabled = false;
+                    return false;
                 }
-                return 0;
+                return true;
         }
     }
 }
